@@ -1,12 +1,11 @@
 package com.example.springboot.service;
 
-import com.example.springboot.dto.CustomResponse;
+import com.example.springboot.dto.AccessToken;
 import com.example.springboot.email.EmailBody;
+import com.example.springboot.enums.OrderStatus;
 import com.example.springboot.utils.Constantes;
-import com.example.springboot.wsdl.ConsumirComerssia;
-import com.example.springboot.wsdl.mapping.WmEnvioTransaccionesResponse;
-import com.example.springboot.wsdl.requesreportes.DATOS;
-import com.example.springboot.wsdl.request.*;
+
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -14,13 +13,14 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import com.example.springboot.repository.QADRepository;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
-import java.time.LocalTime;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
-import java.util.List;
 
 @Component
 @Service
@@ -29,8 +29,6 @@ public class QADService
     @Autowired
     QADRepository repository;
 
-    String usuario = Constantes.USUARIO;
-    String pass = Constantes.PASSWORD;
     String emailURI = "http://localhost:8081/comerssia/notificaciones";
 
     /**
@@ -38,179 +36,294 @@ public class QADService
      * @return Response
      * @throws Exception excepciones del servicio
      */
-    public WmEnvioTransaccionesResponse getQADInfo() throws Exception {
+    public String getTGToken() throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Transaction transaction = new Transaction();
-        transaction.setUsuario(this.usuario);
-        transaction.setClave(this.pass);
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_TG_TOKEN + "?response_type=" +
+                Constantes.RESPONSE_TYPE + "&client_id="+Constantes.APP_ID +
+                "&redirect_uri="+Constantes.REDIRECT_URI;
 
-        Encabezado encabezado = new Encabezado();
-        encabezado.setENCDescripcion("Traslado Entre Bodega y Punto de Venta");
-        encabezado.setGMVCodigo("INV");
-        encabezado.setMOVCodigo("TRASBOD");
-        encabezado.setMovimiento("Standar");
-        encabezado.setUSUCodigo("IMPLE");
-        encabezado.setCAJCodigo("ADM0101");
-        encabezado.setIDEMP("aaco");
-        encabezado.setALMCodigo("ADM01");
-        encabezado.setALMNombre("ADMINISTRATIVO");
-        encabezado.setMONCodigo("1");
-        //Fecha actual
-        Date date = new Date();
-        SimpleDateFormat DateFor = new SimpleDateFormat("yyyy/MM/dd");
-        encabezado.setENCFechaTrx(DateFor.format(date));
-        //Hora actual
-        encabezado.setENCHoraTrx(LocalTime.now().toString().split("\\.")[0]);
-        encabezado.setENCModo("L-C");
-        encabezado.setENCTipoProc("Standar");
-        encabezado.setENCConsTrx("0011");
-        encabezado.setENCTasaConversion("1");
-
-        encabezado.setENCBruto("0");
-        encabezado.setENCDescuento("0");
-        encabezado.setENCPagNoVenta("0");
-        encabezado.setENCVenta("0");
-        encabezado.setENCImpuestos("0");
-        encabezado.setENCComision("0");
-        encabezado.setENCNeto("0");
-        encabezado.setENCRecaudo("0");
-        encabezado.setENCImpuestoAsumido("0");
-        encabezado.setENCPuntos("0");
-        encabezado.setENCEstadoLinea("L");
-        encabezado.setENCRespuesta("OK");
-        encabezado.setENCDescRespuesta("NO APLICA");
-
-        transaction.setEncabezado(encabezado);
-
-        Detalle detalle = new Detalle();
-        List<Item> itemsl = new ArrayList<>();
-
-        List<CustomResponse> resultado = this.repository.getInfoFromQAD();
-
-        //Total de productos en el encabezado
-        encabezado.setENCTotalReferencias(resultado.size() + "");
-
-        for(CustomResponse custom: resultado)
-        {
-            Item item1 = new Item();
-
-            item1.setREFCodClasificacion("");
-            item1.setREFCodigo1(custom.getPt_part());
-            item1.setREFCodigo2(custom.getPt_article());
-
-            item1.setREFNombreCorto(custom.getPt_desc1());
-            item1.setREFNombreLargo(custom.getPt_desc2());
-
-            item1.setCARCodigo1("");
-
-            item1.setREFPrecioLista(custom.getPt_domain());
-            item1.setIRFBruto(custom.getPt_domain());
-            item1.setIRFDescuento("0");
-            item1.setIRFPago(custom.getPt_domain());
-
-            item1.setIRFCantidad(custom.getE_ld_qty_oh());
-
-            item1.setIRFValorImpuesto(custom.getPt_status());
-            item1.setIRFImpuesto("19");
-            try{
-                item1.setREFEsCombo(Integer.parseInt(custom.getE_ld_qty_oh()) <= 1 ? "0" : "1");
-                item1.setTiporef("combo");
-            }catch(Exception e){
-                item1.setREFEsCombo("0");
-                item1.setTiporef("normal");
-            }
-            item1.setREFUltimoCosto("0");
-
-            item1.setPRVCodigo(custom.getPt_domain());
-            item1.setREFManejaLotes("false");
-            item1.setREFCapturaSerial("false");
-            item1.setREFFactorConversion("1");
-
-            item1.setREFInventario("");
-            item1.setREFEsParaVenta("");
-
-            item1.setEstado("ACTIVO");
-
-            item1.setIRFPagNoVenta("0");
-            item1.setIRFVenta("0");
-            item1.setIRFValorImpuestoNeto("0");
-            item1.setIRFComision("0");
-            item1.setIRFNeto("0");
-            //item1.setREFCodigoIngresado(".0006480");
-            item1.setRREFPuntos("0");
-
-            itemsl.add(item1);
-        }
-
-        Item item2 = new Item();
-        item2.setImprime("False");
-        item2.setVisible("True");
-        item2.setTipo("Letra");
-        item2.setNitem("1");
-        item2.setICPPresentacion("Show Room Colina");
-        item2.setICPDescripcion("Almacen Destino");
-        item2.setICPCadena("S101");
-        item2.setICPPresentacion2("SHOW ROOM COLINA");
-        item2.setIcpletra("ALMD");
-
-        Item item3 = new Item();
-        item3.setImprime("False");
-        item3.setVisible("True");
-        item3.setTipo("Letra");
-        item3.setNitem("2");
-        item3.setICPPresentacion("Pruebas Traslado WS");
-        item3.setICPDescripcion("Observaciones");
-        item3.setICPCadena("Pruebas Traslado WS");
-        item3.setIcpletra("OBS");
-
-        Item item4 = new Item();
-        item4.setImprime("False");
-        item4.setVisible("True");
-        item4.setTipo("Letra");
-        item4.setNitem("3");
-        item4.setICPPresentacion(encabezado.getUSUCodigo());
-        item4.setICPDescripcion("Vendedor");
-        item4.setICPCadena(encabezado.getUSUCodigo());
-        item4.setIcpletra("VEN");
-
-        Item item5 = new Item();
-        item5.setImprime("False");
-        item5.setVisible("True");
-        item5.setTipo("Letra");
-        item5.setNitem("4");
-        item5.setICPPresentacion("IMPLE");
-        item5.setICPDescripcion("Vendedor");
-        item5.setICPCadena("IMPLE");
-        item5.setIcpletra("VEN");
-
-        itemsl.add(item2);
-        itemsl.add(item3);
-        itemsl.add(item4);
-        itemsl.add(item5);
-
-        detalle.setItems(itemsl);
-        transaction.setDetalle(detalle);
-
-        ConsumirComerssia comerssia = new ConsumirComerssia();
-        return comerssia.envioTransacciones("", transaction);
+        return template.getForEntity(url, String.class).getBody();
 
     }
 
     /**
      *
-     * @throws Exception excepciones
+     * @return Response
+     * @throws Exception excepciones del servicio
      */
-    public void reportes() throws Exception {
-        DATOS datos = new DATOS();
-        datos.setUSUARIO(this.usuario);
-        datos.setCLAVE(this.pass);
-        datos.setNOMBRE("nombre de reporte valores específicos");
-        datos.setIDEMP("nombre de reporte valores específicos");
+    public AccessToken getAccessToken(String TGCode) throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        ConsumirComerssia consumirComerssia = new ConsumirComerssia();
-        consumirComerssia.reportes(datos);
+        MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
+        map.add("grant_type", Constantes.GRANT_TYPE);
+        map.add("client_id", Constantes.APP_ID);
+        map.add("client_secret", Constantes.CLIENT_SECRET);
+        map.add("code", TGCode);
+        map.add("redirect_uri", Constantes.REDIRECT_URI);
+
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<MultiValueMap<String, String>>(map, headers);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ACCESS_TOKEN;
+
+        return template.postForObject(url, request, AccessToken.class);
 
     }
+
+    /**
+     *
+     * @return Response
+     * @throws Exception excepciones del servicio
+     */
+    public AccessToken refreshAccessToken(String previousToken) throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
+        map.add("grant_type", Constantes.GRANT_REFRESH_TYPE);
+        map.add("client_id", Constantes.APP_ID);
+        map.add("client_secret", Constantes.CLIENT_SECRET);
+        map.add("refresh_token", previousToken);
+
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<MultiValueMap<String, String>>(map, headers);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ACCESS_TOKEN;
+
+        return template.postForObject(url, request, AccessToken.class);
+
+    }
+
+    /**
+     *
+     * @param accessToken
+     * @return
+     */
+    public String orders(String accessToken){
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_SEARCH + "?seller=" +
+                Constantes.SELLER + "&access_token="+accessToken;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+    /**
+     *
+     * @param accessToken
+     * @param offset
+     * @return
+     */
+    public String orders(String accessToken, int offset){
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_SEARCH + "?seller=" +
+                Constantes.SELLER + "&access_token="+accessToken + "&offset="+offset;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+    /**
+     *
+     * @param accessToken
+     * @param limit
+     * @return
+     */
+    public String ordersLimit(String accessToken, int limit){
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_SEARCH + "?seller=" +
+                Constantes.SELLER + "&access_token="+accessToken + "&limit="+limit;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+    /**
+     *
+     * @param accessToken
+     * @param orderStatus
+     * @return
+     */
+    public String ordersByState(String accessToken, OrderStatus orderStatus)
+    {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_SEARCH + "?seller=" +
+                Constantes.SELLER + "&order.status=" + orderStatus.getValue() +
+                "&access_token="+accessToken;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+    /**
+     *
+     * @param accessToken
+     * @param orderStatus
+     * @param offset
+     * @return
+     */
+    public String ordersByState(String accessToken, OrderStatus orderStatus, int offset)
+    {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_SEARCH + "?seller=" +
+                Constantes.SELLER + "&order.status=" + orderStatus.getValue() +
+                "&access_token="+accessToken + "&offset="+offset;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+
+    /**
+     *
+     * @param accessToken
+     * @param orderStatus
+     * @param limit
+     * @return
+     */
+    public String ordersByStateLimit(String accessToken, OrderStatus orderStatus, int limit)
+    {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_SEARCH + "?seller=" +
+                Constantes.SELLER + "&order.status=" + orderStatus.getValue() +
+                "&access_token="+accessToken + "&limit="+limit;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+    /**
+     *
+     * @param accessToken
+     * @param orderStatus
+     * @return
+     */
+    public String ordersByStateAndDate(String accessToken, OrderStatus orderStatus, Date actualDate)
+    {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        SimpleDateFormat sdf2 = new SimpleDateFormat("YYYY-MM-ddTHH:mm:ss.000-00:00");
+        Timestamp timestamp = new Timestamp(actualDate.getTime());
+        String date = sdf2.format(timestamp);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_SEARCH + "?seller=" +
+                Constantes.SELLER + "&order.date_closed.from="+date +
+                "&order.status=" + orderStatus.getValue() +
+                "&access_token="+accessToken;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+    /**
+     *
+     * @param accessToken
+     * @param orderStatus
+     * @return
+     */
+    public String ordersByStateAndDate(String accessToken, OrderStatus orderStatus, Date actualDate, int offset)
+    {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        SimpleDateFormat sdf2 = new SimpleDateFormat("YYYY-MM-ddTHH:mm:ss.000-00:00");
+        Timestamp timestamp = new Timestamp(actualDate.getTime());
+        String date = sdf2.format(timestamp);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_SEARCH + "?seller=" +
+                Constantes.SELLER + "&order.date_closed.from="+date +
+                "&order.status=" + orderStatus.getValue() +
+                "&access_token="+accessToken +
+                "&offset="+offset;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+    /**
+     *
+     * @param accessToken
+     * @param orderStatus
+     * @return
+     */
+    public String ordersByStateAndDateLimit(String accessToken, OrderStatus orderStatus, Date actualDate, int limit)
+    {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        SimpleDateFormat sdf2 = new SimpleDateFormat("YYYY-MM-ddTHH:mm:ss.000-00:00");
+        Timestamp timestamp = new Timestamp(actualDate.getTime());
+        String date = sdf2.format(timestamp);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_SEARCH + "?seller=" +
+                Constantes.SELLER + "&order.date_closed.from="+date +
+                "&order.status=" + orderStatus.getValue() +
+                "&access_token="+accessToken +
+                "&limit="+limit;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+    /**
+     *
+     * @param accessToken
+     * @param shippingID
+     * @return
+     */
+    public String getShippingData(String accessToken, String shippingID)
+    {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_SHIPPING.replace("SHIPMENT_ID", shippingID) +
+                "?access_token="+accessToken;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+    /**
+     *
+     * @param accessToken
+     * @param shippingID
+     * @return
+     */
+    public String getShippingDataImageReport(String accessToken, String... shippingID)
+    {
+        String shipping = String.join(",", shippingID);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_SHIPPING.replace("SHIPPING_ID", shipping) +
+                "?access_token="+accessToken;
+
+        return template.getForEntity(url, String.class).getBody();
+    }
+
+
+
 
     /**
      *

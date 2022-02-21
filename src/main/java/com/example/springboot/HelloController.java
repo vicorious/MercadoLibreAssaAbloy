@@ -16,7 +16,7 @@ public class HelloController
 		this.qadService = new QADService();
 	}
 
-	@GetMapping("/enviartransacion")
+	@GetMapping("/ML")
 	public String index() {
 		try {
 			WmEnvioTransaccionesResponse response = this.qadService.getQADInfo();
