@@ -4,30 +4,33 @@ import com.example.springboot.dto.AccessToken;
 import com.example.springboot.email.EmailBody;
 import com.example.springboot.enums.OrderStatus;
 import com.example.springboot.utils.Constantes;
-
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import com.sun.net.httpserver.HttpContext;
+import org.apache.http.impl.client.DefaultRedirectStrategy;
+import org.apache.http.client.HttpClient;
+import org.springframework.http.*;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.LaxRedirectStrategy;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
-import com.example.springboot.repository.QADRepository;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import com.example.springboot.exception.RefreshTokenException;
+
+import java.net.http.HttpResponse;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Component
 @Service
 public class QADService
 {
-    @Autowired
-    QADRepository repository;
 
     String emailURI = "http://localhost:8081/comerssia/notificaciones";
 
@@ -40,12 +43,45 @@ public class QADService
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        RestTemplate template = new RestTemplate();
-        String url = Constantes.URL_TG_TOKEN + "?response_type=" +
-                Constantes.RESPONSE_TYPE + "&client_id="+Constantes.APP_ID +
-                "&redirect_uri="+Constantes.REDIRECT_URI;
+        Map<String, String> params = new HashMap<>();
+        params.put("response_type", Constantes.RESPONSE_TYPE);
+        params.put("client_id", Constantes.APP_ID);
+        params.put("redirect_uri", Constantes.REDIRECT_URI);
 
-        return template.getForEntity(url, String.class).getBody();
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_TG_TOKEN;
+
+        HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
+
+        HttpClient httpClient =
+                HttpClientBuilder.create()
+                        .setRedirectStrategy(new LaxRedirectStrategy())
+                        .build();
+        HttpComponentsClientHttpRequestFactory factory =
+                new HttpComponentsClientHttpRequestFactory(httpClient);
+
+        factory.setHttpClient(httpClient);
+
+        template.setRequestFactory(factory);
+        
+        ResponseEntity<String> response = template.exchange(
+                url, HttpMethod.GET, requestEntity, String.class, params);
+
+        HttpHeaders headersResponse = response.getHeaders();
+        headersResponse.get("Location");
+
+
+        return response.getBody();
+
+    }
+
+    /**
+     *
+     * @return
+     * @throws Exception
+     */
+    public String getDummyTGToken() throws Exception {
+        return "TG-5b9032b4e23464aed1f959f-1234567";
 
     }
 
@@ -54,24 +90,40 @@ public class QADService
      * @return Response
      * @throws Exception excepciones del servicio
      */
-    public AccessToken getAccessToken(String TGCode) throws Exception {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+    public AccessToken getAccessToken(String TGCode) throws RefreshTokenException {
+        try
+        {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
-        map.add("grant_type", Constantes.GRANT_TYPE);
-        map.add("client_id", Constantes.APP_ID);
-        map.add("client_secret", Constantes.CLIENT_SECRET);
-        map.add("code", TGCode);
-        map.add("redirect_uri", Constantes.REDIRECT_URI);
+            MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
+            map.add("grant_type", Constantes.GRANT_TYPE);
+            map.add("client_id", Constantes.APP_ID);
+            map.add("client_secret", Constantes.CLIENT_SECRET);
+            map.add("code", TGCode);
+            map.add("redirect_uri", Constantes.REDIRECT_URI);
 
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<MultiValueMap<String, String>>(map, headers);
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<MultiValueMap<String, String>>(map, headers);
 
-        RestTemplate template = new RestTemplate();
-        String url = Constantes.URL_ACCESS_TOKEN;
+            RestTemplate template = new RestTemplate();
+            String url = Constantes.URL_ACCESS_TOKEN;
 
-        return template.postForObject(url, request, AccessToken.class);
+            return template.postForObject(url, request, AccessToken.class);
+        }catch(Exception ex)
+        {
+            this.email(ex.getMessage() + "<H1>SE INTENTARA CON EL REFRESHTOKEN</H1>", "Error en access token");
+            return this.refreshAccessToken(TGCode);
+        }
 
+    }
+
+    /**
+     *
+     * @return
+     */
+    public AccessToken dummyAccessToken(String tgtoken){
+        return new AccessToken("APP_USR-123456-090515-8cc4448aac10d5105474e1351-1234567",
+                "bearer", 10800, "offline_access read write", 1234567, tgtoken);
     }
 
     /**
@@ -79,22 +131,28 @@ public class QADService
      * @return Response
      * @throws Exception excepciones del servicio
      */
-    public AccessToken refreshAccessToken(String previousToken) throws Exception {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+    public AccessToken refreshAccessToken(String previousTGToken) throws RefreshTokenException {
+        try
+        {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
-        MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
-        map.add("grant_type", Constantes.GRANT_REFRESH_TYPE);
-        map.add("client_id", Constantes.APP_ID);
-        map.add("client_secret", Constantes.CLIENT_SECRET);
-        map.add("refresh_token", previousToken);
+            MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
+            map.add("grant_type", Constantes.GRANT_REFRESH_TYPE);
+            map.add("client_id", Constantes.APP_ID);
+            map.add("client_secret", Constantes.CLIENT_SECRET);
+            map.add("refresh_token", previousTGToken);
 
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<MultiValueMap<String, String>>(map, headers);
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<MultiValueMap<String, String>>(map, headers);
 
-        RestTemplate template = new RestTemplate();
-        String url = Constantes.URL_ACCESS_TOKEN;
+            RestTemplate template = new RestTemplate();
+            String url = Constantes.URL_ACCESS_TOKEN;
 
-        return template.postForObject(url, request, AccessToken.class);
+            return template.postForObject(url, request, AccessToken.class);
+        }catch(Exception ex){
+            this.email(ex.getMessage() , "Error en RefreshToken");
+            throw new RefreshTokenException(ex.getMessage());
+        }
 
     }
 
@@ -113,6 +171,765 @@ public class QADService
                 Constantes.SELLER + "&access_token="+accessToken;
 
         return template.getForEntity(url, String.class).getBody();
+    }
+
+    public String dummyOrders(){
+        return "{\n" +
+                "  \"query\": \"\",\n" +
+                "  \"display\": \"complete\",\n" +
+                "  \"paging\": {\n" +
+                "    \"total\": 1,\n" +
+                "    \"offset\": 0,\n" +
+                "    \"limit\": 50\n" +
+                "  },\n" +
+                "  \"results\": [\n" +
+                "    {\n" +
+                "      \"id\": 1068825849,\n" +
+                "      \"comments\": null,\n" +
+                "      \"status\": \"paid\",\n" +
+                "      \"status_detail\": {\n" +
+                "        \"description\": null,\n" +
+                "        \"code\": null\n" +
+                "      },\n" +
+                "      \"date_created\": \"2016-02-25T15:53:38.000-04:00\",\n" +
+                "      \"date_closed\": \"2016-02-25T15:53:37.000-04:00\",\n" +
+                "      \"expiration_date\": \"2016-03-17T15:53:38.000-04:00\",\n" +
+                "      \"date_last_updated\": \"2016-02-25T15:55:44.973Z\",\n" +
+                "      \"hidden_for_seller\": false,\n" +
+                "      \"currency_id\": \"ARS\",\n" +
+                "      \"order_items\": [\n" +
+                "        {\n" +
+                "          \"currency_id\": \"ARS\",\n" +
+                "          \"item\": {\n" +
+                "            \"id\": \"MLA607850752\",\n" +
+                "            \"title\": \"Item De Testeo, Por Favor No Ofertar --kc:off\",\n" +
+                "            \"seller_custom_field\": null,\n" +
+                "            \"variation_attributes\": [\n" +
+                "            ],\n" +
+                "            \"category_id\": \"MLA3530\",\n" +
+                "            \"variation_id\": null\n" +
+                "          },\n" +
+                "          \"sale_fee\": 1.05,\n" +
+                "          \"quantity\": 1,\n" +
+                "          \"unit_price\": 10\n" +
+                "        }\n" +
+                "      ],\n" +
+                "      \"total_amount\": 10,\n" +
+                "      \"mediations\": [\n" +
+                "      ],\n" +
+                "      \"payments\": [\n" +
+                "        {\n" +
+                "          \"id\": 1833868697,\n" +
+                "          \"order_id\": 2000003508419013,\n" +
+                "          \"payer_id\": 207040551,\n" +
+                "          \"collector\": {\n" +
+                "            \"id\": 207035636\n" +
+                "          },\n" +
+                "          \"currency_id\": \"ARS\",\n" +
+                "          \"status\": \"approved\",\n" +
+                "          \"status_code\": \"0\",\n" +
+                "          \"status_detail\": \"accredited\",\n" +
+                "          \"transaction_amount\": 10,\n" +
+                "          \"shipping_cost\": 0,\n" +
+                "          \"overpaid_amount\": 0,\n" +
+                "          \"total_paid_amount\": 10,\n" +
+                "          \"marketplace_fee\": null,\n" +
+                "          \"coupon_amount\": 0,\n" +
+                "          \"date_created\": \"2016-02-25T15:55:42.000-04:00\",\n" +
+                "          \"date_last_modified\": \"2016-02-25T15:55:42.000-04:00\",\n" +
+                "          \"card_id\": null,\n" +
+                "          \"reason\": \"Item De Testeo, Por Favor No Ofertar --kc:off\",\n" +
+                "          \"activation_uri\": null,\n" +
+                "          \"payment_method_id\": \"diners\",\n" +
+                "          \"installments\": 9,\n" +
+                "          \"issuer_id\": \"1028\",\n" +
+                "          \"atm_transfer_reference\": {\n" +
+                "            \"company_id\": null,\n" +
+                "            \"transaction_id\": null\n" +
+                "          },\n" +
+                "          \"coupon_id\": null,\n" +
+                "          \"operation_type\": \"regular_payment\",\n" +
+                "          \"payment_type\": \"credit_card\",\n" +
+                "          \"available_actions\": [\n" +
+                "          ],\n" +
+                "          \"installment_amount\": 1.11,\n" +
+                "          \"deferred_period\": null,\n" +
+                "          \"date_approved\": \"2016-02-25T15:55:42.000-04:00\",\n" +
+                "          \"authorization_code\": \"1234567\",\n" +
+                "          \"transaction_order_id\": \"1234567\"\n" +
+                "        }\n" +
+                "      ],\n" +
+                "      \"shipping\": {\n" +
+                "        \"substatus\": null,\n" +
+                "        \"status\": \"to_be_agreed\",\n" +
+                "        \"id\": null,\n" +
+                "        \"service_id\": null,\n" +
+                "        \"currency_id\": null,\n" +
+                "        \"shipping_mode\": null,\n" +
+                "        \"shipment_type\": null,\n" +
+                "        \"sender_id\": null,\n" +
+                "        \"picking_type\": null,\n" +
+                "        \"date_created\": null,\n" +
+                "        \"cost\": null,\n" +
+                "        \"date_first_printed\": null\n" +
+                "      },\n" +
+                "      \"buyer\": {\n" +
+                "        \"id\": 207040551,\n" +
+                "        \"nickname\": \"TETE5029382\",\n" +
+                "        \"email\": \"test_user_97424966@testuser.com\",\n" +
+                "        \"phone\": {\n" +
+                "          \"area_code\": \"01\",\n" +
+                "          \"number\": \"1111-1111\",\n" +
+                "          \"extension\": \"\",\n" +
+                "          \"verified\": false\n" +
+                "        },\n" +
+                "        \"alternative_phone\": {\n" +
+                "          \"area_code\": \"\",\n" +
+                "          \"number\": \"\",\n" +
+                "          \"extension\": \"\"\n" +
+                "        },\n" +
+                "        \"first_name\": \"Test\",\n" +
+                "        \"last_name\": \"Test\",\n" +
+                "        \"billing_info\": {\n" +
+                "          \"doc_type\": null,\n" +
+                "          \"doc_number\": null\n" +
+                "        }\n" +
+                "      },\n" +
+                "      \"seller\": {\n" +
+                "        \"id\": 207035636,\n" +
+                "        \"nickname\": \"TETE9544096\",\n" +
+                "        \"email\": \"test_user_50828007@testuser.com\",\n" +
+                "        \"phone\": {\n" +
+                "          \"area_code\": \"01\",\n" +
+                "          \"number\": \"1111-1111\",\n" +
+                "          \"extension\": \"\",\n" +
+                "          \"verified\": false\n" +
+                "        },\n" +
+                "        \"alternative_phone\": {\n" +
+                "          \"area_code\": \"\",\n" +
+                "          \"number\": \"\",\n" +
+                "          \"extension\": \"\"\n" +
+                "        },\n" +
+                "        \"first_name\": \"Test\",\n" +
+                "        \"last_name\": \"Test\"\n" +
+                "      },\n" +
+                "      \"feedback\": {\n" +
+                "        \"sale\": null,\n" +
+                "        \"purchase\": null\n" +
+                "      },\n" +
+                "      \"tags\": [\n" +
+                "        \"not_delivered\",\n" +
+                "        \"paid\"\n" +
+                "      ]\n" +
+                "    }\n" +
+                "  ],\n" +
+                "  \"sort\": {\n" +
+                "    \"id\": \"date_asc\",\n" +
+                "    \"name\": \"Date ascending\"\n" +
+                "  },\n" +
+                "  \"available_sorts\": [\n" +
+                "    {\n" +
+                "      \"id\": \"date_desc\",\n" +
+                "      \"name\": \"Date descending\"\n" +
+                "    }\n" +
+                "  ],\n" +
+                "  \"filters\": [\n" +
+                "  ],\n" +
+                "  \"available_filters\": [\n" +
+                "    {\n" +
+                "      \"id\": \"order.status\",\n" +
+                "      \"name\": \"Order Status\",\n" +
+                "      \"type\": \"text\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"paid\",\n" +
+                "          \"name\": \"Order Paid\",\n" +
+                "          \"results\": 1\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"confirmed\",\n" +
+                "          \"name\": \"Order Confirmed\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"payment_in_process\",\n" +
+                "          \"name\": \"Payment in Process\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"payment_required\",\n" +
+                "          \"name\": \"Payment Required\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"cancelled\",\n" +
+                "          \"name\": \"Order Cancelled\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"invalid\",\n" +
+                "          \"name\": \"Invalid\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"id\": \"shipping.status\",\n" +
+                "      \"name\": \"Shipping Status\",\n" +
+                "      \"type\": \"text\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"to_be_agreed\",\n" +
+                "          \"name\": \"To be agreed\",\n" +
+                "          \"results\": 1\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"pending\",\n" +
+                "          \"name\": \"Pending\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"handling\",\n" +
+                "          \"name\": \"Handling\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"ready_to_ship\",\n" +
+                "          \"name\": \"Ready to ship\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"shipped\",\n" +
+                "          \"name\": \"Shipped\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"delivered\",\n" +
+                "          \"name\": \"Delivered\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"not_delivered\",\n" +
+                "          \"name\": \"Not delivered\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"not_verified\",\n" +
+                "          \"name\": \"Not verified\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"cancelled\",\n" +
+                "          \"name\": \"Cancelled\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"closed\",\n" +
+                "          \"name\": \"Closed\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"error\",\n" +
+                "          \"name\": \"Error\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"active\",\n" +
+                "          \"name\": \"Active\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"not_specified\",\n" +
+                "          \"name\": \"Not specified\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"stale_ready_to_ship\",\n" +
+                "          \"name\": \"Stale ready to ship\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"stale_shipped\",\n" +
+                "          \"name\": \"Stale shipped\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"id\": \"feedback.sale.rating\",\n" +
+                "      \"name\": \"Feedback rating\",\n" +
+                "      \"type\": \"text\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"negative\",\n" +
+                "          \"name\": \"Negative\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"neutral\",\n" +
+                "          \"name\": \"Neutral\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"positive\",\n" +
+                "          \"name\": \"Positive\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"id\": \"feedback.purchase.rating\",\n" +
+                "      \"name\": \"Feedback rating\",\n" +
+                "      \"type\": \"text\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"negative\",\n" +
+                "          \"name\": \"Negative\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"neutral\",\n" +
+                "          \"name\": \"Neutral\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"positive\",\n" +
+                "          \"name\": \"Positive\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"id\": \"feedback.sale.fulfilled\",\n" +
+                "      \"name\": \"Feedback sale fulfilled\",\n" +
+                "      \"type\": \"boolean\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"F\",\n" +
+                "          \"name\": \"Transaction was aborted\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"T\",\n" +
+                "          \"name\": \"Transaction actually happened\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"id\": \"feedback.purchase.fulfilled\",\n" +
+                "      \"name\": \"Feedback purchase fulfilled\",\n" +
+                "      \"type\": \"boolean\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"F\",\n" +
+                "          \"name\": \"Transaction was aborted\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"T\",\n" +
+                "          \"name\": \"Transaction actually happened\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"id\": \"shipping.service_id\",\n" +
+                "      \"name\": \"Shipping Service\",\n" +
+                "      \"type\": \"long\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"61\",\n" +
+                "          \"name\": \"Estándar\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"64\",\n" +
+                "          \"name\": \"Prioritario\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"151\",\n" +
+                "          \"name\": \"Estándar\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"154\",\n" +
+                "          \"name\": \"Prioritario\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"321\",\n" +
+                "          \"name\": \"Colecta Retiro Sucursal\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"341\",\n" +
+                "          \"name\": \"Estándar\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"251\",\n" +
+                "          \"name\": \"Otros\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"63\",\n" +
+                "          \"name\": \"Estándar\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"153\",\n" +
+                "          \"name\": \"Estándar\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"351\",\n" +
+                "          \"name\": \"Prioritario\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"311\",\n" +
+                "          \"name\": \"Colecta Normal\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"381\",\n" +
+                "          \"name\": \"Prioritario\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"62\",\n" +
+                "          \"name\": \"Prioritario\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"312\",\n" +
+                "          \"name\": \"Colecta Express\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"152\",\n" +
+                "          \"name\": \"Estándar\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"81\",\n" +
+                "          \"name\": \"Moto Express\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"id\": \"shipping.substatus\",\n" +
+                "      \"name\": \"Shipping Substatus\",\n" +
+                "      \"type\": \"text\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"cost_exceeded\",\n" +
+                "          \"name\": \"Cost exceeded\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"regenerating\",\n" +
+                "          \"name\": \"Regenerating\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"waiting_for_label_generation\",\n" +
+                "          \"name\": \"Waiting for label generation\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"ready_to_print\",\n" +
+                "          \"name\": \"Ready to print\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"invoice_pending\",\n" +
+                "          \"name\": \"Invoice pending\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"printed\",\n" +
+                "          \"name\": \"Printed\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"in_pickup_list\",\n" +
+                "          \"name\": \"In pikcup list\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"ready_for_pkl_creation\",\n" +
+                "          \"name\": \"Ready for pkl creation\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"ready_for_pickup\",\n" +
+                "          \"name\": \"Ready for pickup\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"picked_up\",\n" +
+                "          \"name\": \"Picked up\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"stale\",\n" +
+                "          \"name\": \"Stale shipped\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"in_hub\",\n" +
+                "          \"name\": \"In hub\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"measures_ready\",\n" +
+                "          \"name\": \"Measures and weight ready\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"waiting_for_carrier_authorization\",\n" +
+                "          \"name\": \"Waiting for carrier authorization\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"authorized_by_carrier\",\n" +
+                "          \"name\": \"Authorized by carrier\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"in_plp\",\n" +
+                "          \"name\": \"In PLP\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"delayed\",\n" +
+                "          \"name\": \"Delayed\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"waiting_for_withdrawal\",\n" +
+                "          \"name\": \"Waiting for withdrawal\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"contact_with_carrier_required\",\n" +
+                "          \"name\": \"Contact with carrier required\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"receiver_absent\",\n" +
+                "          \"name\": \"Receiver absent\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"reclaimed\",\n" +
+                "          \"name\": \"Reclaimed\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"not_localized\",\n" +
+                "          \"name\": \"Not localized\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"forwarded_to_third\",\n" +
+                "          \"name\": \"Forwarded to third party\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"soon_deliver\",\n" +
+                "          \"name\": \"Soon deliver\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"refused_delivery\",\n" +
+                "          \"name\": \"Delivery refused\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"bad_address\",\n" +
+                "          \"name\": \"Bad address\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"negative_feedback\",\n" +
+                "          \"name\": \"Stale shipped forced to not delivered due to negative feedback by buyer\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"need_review\",\n" +
+                "          \"name\": \"Need to review carrier status to understand what happened\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"damaged\",\n" +
+                "          \"name\": \"damaged\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"fulfilled_feedback\",\n" +
+                "          \"name\": \"Fulfilled by buyer feedback\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"no_action_taken\",\n" +
+                "          \"name\": \"No action taken by buyer\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"double_refund\",\n" +
+                "          \"name\": \"Double Refund\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"returning_to_sender\",\n" +
+                "          \"name\": \"Returning to sender\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"retained\",\n" +
+                "          \"name\": \"Retained\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"stolen\",\n" +
+                "          \"name\": \"Stolen\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"returned\",\n" +
+                "          \"name\": \"Returned\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"confiscated\",\n" +
+                "          \"name\": \"confiscated\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"to_review\",\n" +
+                "          \"name\": \"Closed shipment\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"destroyed\",\n" +
+                "          \"name\": \"Destroyed\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"claimed_me\",\n" +
+                "          \"name\": \"Stale shipped with claim that was forced to not delivered\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"id\": \"feedback.status\",\n" +
+                "      \"name\": \"Feedback Status\",\n" +
+                "      \"type\": \"text\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"pending\",\n" +
+                "          \"name\": \"Waiting for your feedback\",\n" +
+                "          \"results\": 1\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"waiting_buyer\",\n" +
+                "          \"name\": \"Waiting for Buyer's feedback\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"id\": \"tags\",\n" +
+                "      \"name\": \"Tags\",\n" +
+                "      \"type\": \"text\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"paid\",\n" +
+                "          \"name\": \"Order Paid\",\n" +
+                "          \"results\": 1\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"not_delivered\",\n" +
+                "          \"name\": \"Not Delivered\",\n" +
+                "          \"results\": 1\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"delivered\",\n" +
+                "          \"name\": \"Delivered\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"not_paid\",\n" +
+                "          \"name\": \"Order Not Paid\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"claim_closed\",\n" +
+                "          \"name\": \"Claim Closed\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"claim_opened\",\n" +
+                "          \"name\": \"Claim Opened\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"not_processed\",\n" +
+                "          \"name\": \"Not processed order\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"processed\",\n" +
+                "          \"name\": \"Processed order\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"id\": \"mediations.status\",\n" +
+                "      \"name\": \"Mediation Status\",\n" +
+                "      \"type\": \"text\",\n" +
+                "      \"values\": [\n" +
+                "        {\n" +
+                "          \"id\": \"claim_opened\",\n" +
+                "          \"name\": \"Claim opened\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"claim_closed\",\n" +
+                "          \"name\": \"Claim closed\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"dispute_opened\",\n" +
+                "          \"name\": \"Dispute opened\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"dispute_closed\",\n" +
+                "          \"name\": \"Dispute closed\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"seller_dispute_opened\",\n" +
+                "          \"name\": \"Seller dispute opened\",\n" +
+                "          \"results\": 0\n" +
+                "        },\n" +
+                "        {\n" +
+                "          \"id\": \"seller_dispute_closed\",\n" +
+                "          \"name\": \"Seller dispute closed\",\n" +
+                "          \"results\": 0\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}";
     }
 
     /**
@@ -301,6 +1118,188 @@ public class QADService
                 "?access_token="+accessToken;
 
         return template.getForEntity(url, String.class).getBody();
+    }
+
+    public String getDummyShippingData()
+    {
+        return "{\n" +
+                "    \"id\": 123456789,\n" +
+                "    \"external_reference\": null,\n" +
+                "    \"status\": \"ready_to_ship\",\n" +
+                "    \"substatus\": \"printed\",\n" +
+                "    \"date_created\": \"2019-09-02T15:12:31.000-04:00\",\n" +
+                "    \"last_updated\": \"2019-09-02T15:16:52.000-04:00\",\n" +
+                "    \"declared_value\": 120,\n" +
+                "    \"dimensions\": {\n" +
+                "        \"height\": 9,\n" +
+                "        \"width\": 25,\n" +
+                "        \"length\": 32,\n" +
+                "        \"weight\": 310\n" +
+                "    },\n" +
+                "    \"logistic\": {\n" +
+                "        \"direction\": \"forward\",\n" +
+                "        \"mode\": \"me2\",\n" +
+                "        \"type\": \"drop_off\"\n" +
+                "    },\n" +
+                "    \"source\": {\n" +
+                "        \"site_id\": \"MLB\",\n" +
+                "        \"market_place\": \"MELI\",\n" +
+                "        \"application_id\": null\n" +
+                "    },\n" +
+                "    \"tracking_number\": \"1011234567890\",\n" +
+                "    \"origin\": {\n" +
+                "        \"type\": \"selling_address\",\n" +
+                "        \"sender_id\": 4321345667,\n" +
+                "        \"shipping_address\": {\n" +
+                "            \"address_id\": 1035444445,\n" +
+                "            \"address_line\": \"XXXXXXX\",\n" +
+                "            \"street_name\": \"XXXXXXX\",\n" +
+                "            \"street_number\": \"XXXXXXX\",\n" +
+                "            \"comment\": \"XXXXXXX\",\n" +
+                "            \"zip_code\": \"02554123\",\n" +
+                "            \"city\": {\n" +
+                "                \"id\": \"BR-SP-44\",\n" +
+                "                \"name\": \"São Paulo\"\n" +
+                "            },\n" +
+                "            \"state\": {\n" +
+                "                \"id\": \"BR-SP\",\n" +
+                "                \"name\": \"São Paulo\"\n" +
+                "            },\n" +
+                "            \"country\": {\n" +
+                "                \"id\": \"BR\",\n" +
+                "                \"name\": \"Brasil\"\n" +
+                "            },\n" +
+                "            \"neighborhood\": {\n" +
+                "                \"id\": null,\n" +
+                "                \"name\": \"Vila Diva (Zona Norte)\"\n" +
+                "            },\n" +
+                "            \"municipality\": {\n" +
+                "                \"id\": null,\n" +
+                "                \"name\": null\n" +
+                "            },\n" +
+                "            \"agency\": {\n" +
+                "                \"carrier_id\": null,\n" +
+                "                \"agency_id\": null,\n" +
+                "                \"description\": null,\n" +
+                "                \"phone\": null,\n" +
+                "                \"open_hours\": null\n" +
+                "            },\n" +
+                "            \"types\": [\n" +
+                "                \"billing\",\n" +
+                "                \"default_selling_address\",\n" +
+                "                \"shipping\"\n" +
+                "            ],\n" +
+                "            \"latitude\": 0,\n" +
+                "            \"longitude\": 0,\n" +
+                "            \"geolocation_type\": \"ROOFTOP\"\n" +
+                "        }\n" +
+                "    },\n" +
+                "    \"destination\": {\n" +
+                "        \"type\": \"buying_address\",\n" +
+                "        \"receiver_id\": 4322312345,\n" +
+                "        \"receiver_name\": \"Teste Joaozinho\",\n" +
+                "        \"receiver_phone\": \"48 12345678\",\n" +
+                "        \"comments\": null,\n" +
+                "        \"shipping_address\": {\n" +
+                "            \"address_id\": 123456789,\n" +
+                "            \"address_line\": \"Avenida Brigadeiro Faria 123456\",\n" +
+                "            \"street_name\": \"Avenida Brigadeiro Faria\",\n" +
+                "            \"street_number\": \"123456\",\n" +
+                "            \"comment\": null,\n" +
+                "            \"zip_code\": \"0713123456\",\n" +
+                "            \"city\": {\n" +
+                "                \"id\": \"BR-SP-41\",\n" +
+                "                \"name\": \"Guarulhos\"\n" +
+                "            },\n" +
+                "            \"state\": {\n" +
+                "                \"id\": \"BR-SP\",\n" +
+                "                \"name\": \"São Paulo\"\n" +
+                "            },\n" +
+                "            \"country\": {\n" +
+                "                \"id\": \"BR\",\n" +
+                "                \"name\": \"Brasil\"\n" +
+                "            },\n" +
+                "            \"neighborhood\": {\n" +
+                "                \"id\": null,\n" +
+                "                \"name\": \"Cocaia\"\n" +
+                "            },\n" +
+                "            \"municipality\": {\n" +
+                "                \"id\": null,\n" +
+                "                \"name\": null\n" +
+                "            },\n" +
+                "            \"agency\": {\n" +
+                "                \"carrier_id\": null,\n" +
+                "                \"agency_id\": null,\n" +
+                "                \"description\": null,\n" +
+                "                \"phone\": null,\n" +
+                "                \"open_hours\": null\n" +
+                "            },\n" +
+                "            \"types\": [\n" +
+                "                \"default_buying_address\"\n" +
+                "            ],\n" +
+                "            \"latitude\": -23.442744,\n" +
+                "            \"longitude\": -46.522703,\n" +
+                "            \"geolocation_type\": \"ROOFTOP\",\n" +
+                "            \"delivery_preference\": \"residential\"\n" +
+                "        }\n" +
+                "    },\n" +
+                "    \"lead_time\": {\n" +
+                "        \"option_id\": 1964123456,\n" +
+                "        \"shipping_method\": {\n" +
+                "            \"id\": 182,\n" +
+                "            \"name\": \"Expresso\",\n" +
+                "            \"type\": \"express\",\n" +
+                "            \"deliver_to\": \"address\"\n" +
+                "        },\n" +
+                "        \"currency_id\": \"BRL\",\n" +
+                "        \"cost\": 0,\n" +
+                "        \"list_cost\": 15.45,\n" +
+                "        \"cost_type\": \"free\",\n" +
+                "        \"service_id\": 22,\n" +
+                "        \"delivery_type\": \"estimated\",\n" +
+                "        \"estimated_schedule_limit\": {\n" +
+                "            \"date\": null\n" +
+                "        },\n" +
+                "        \"estimated_delivery_time\": {\n" +
+                "            \"type\": \"known_frame\",\n" +
+                "            \"date\": \"2019-09-04T00:00:00.000-03:00\",\n" +
+                "            \"unit\": \"hour\",\n" +
+                "            \"offset\": {\n" +
+                "                \"date\": \"2019-09-05T00:00:00.000-03:00\",\n" +
+                "                \"shipping\": 24\n" +
+                "            },\n" +
+                "            \"time_frame\": {\n" +
+                "                \"from\": null,\n" +
+                "                \"to\": null\n" +
+                "            },\n" +
+                "            \"pay_before\": null,\n" +
+                "            \"shipping\": 24,\n" +
+                "            \"handling\": 24,\n" +
+                "            \"schedule\": null\n" +
+                "        },\n" +
+                "        \"estimated_delivery_limit\": {\n" +
+                "            \"date\": \"2019-09-19T00:00:00.000-03:00\",\n" +
+                "            \"offset\": 240\n" +
+                "        },\n" +
+                "        \"estimated_delivery_final\": {\n" +
+                "            \"date\": \"2020-01-03T00:00:00.000-03:00\",\n" +
+                "            \"offset\": 1920\n" +
+                "        },\n" +
+                "        \"estimated_delivery_extended\": {\n" +
+                "            \"date\": \"2019-09-12T00:00:00.000-03:00\",\n" +
+                "            \"offset\": 120\n" +
+                "        },\n" +
+                "        \"estimated_handling_limit\": {\n" +
+                "            \"date\": \"2019-09-03T00:00:00.000-03:00\"\n" +
+                "        },\n" +
+                "        \"delay\": [\n" +
+                "            \"handling_delayed\"\n" +
+                "        ]\n" +
+                "    },\n" +
+                "    \"tags\": [\n" +
+                "        \"test_shipment\"\n" +
+                "    ]\n" +
+                "}";
     }
 
     /**
@@ -1311,7 +2310,8 @@ public class QADService
 
 
         EmailBody emailBody = new EmailBody();
-        emailBody.setEmail("jessica.buitrago@sii-group.co");
+        //emailBody.setEmail("jessica.buitrago@sii-group.co");
+        emailBody.setEmail("alejandro.lindarte@sii-group.co");
         //emailBody.setEmail("carlosjavier.tejerorojas@assaabloy.com");
         emailBody.setContent(myvar+"<h1>"+content+"</h1>");
         emailBody.setSubject(subject);

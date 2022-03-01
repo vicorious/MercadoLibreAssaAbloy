@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>org.springframework.boot</groupId>
@@ -8,15 +8,15 @@
 		<version>2.5.0</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>com.qacomerssia</groupId>
-	<artifactId>qacomerssia</artifactId>
+	<groupId>com.mercadolibreqad</groupId>
+	<artifactId>mercadolibreqad</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>qacomerssia</name>
+	<name>mercadolibreqad</name>
 	<description>Demo project for Spring Boot</description>
 	<properties>
 		<java.version>1.8</java.version>
-        <kotlin.version>1.6.10</kotlin.version>
-    </properties>
+		<kotlin.version>1.6.10</kotlin.version>
+	</properties>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -30,6 +30,7 @@
             <version>2.6.2</version>
             <scope>test</scope>
 		</dependency>
+
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -86,8 +87,8 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-test</artifactId>
-            <version>2.6.2</version>
-        </dependency>
+			<version>2.6.2</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework</groupId>
@@ -95,6 +96,20 @@
 			<version>4.3.0.RELEASE</version>
 		</dependency>
 		<!-- Thanks for using https://jar-download.com -->
+
+		<dependency>
+			<groupId>org.json</groupId>
+			<artifactId>json</artifactId>
+			<version>20200518</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpclient -->
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+			<version>4.5.13</version>
+		</dependency>
+
 
 	</dependencies>
 
@@ -104,36 +119,16 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
-			<!-- tag::wsdl[] -->
-			<plugin>
-					<groupId>org.jvnet.jaxb2.maven2</groupId>
-					<artifactId>maven-jaxb2-plugin</artifactId>
-					<version>0.14.0</version>
-					<executions>
-						<execution>
-							<id>comerssiaWS</id>
-							<goals>
-								<goal>generate</goal>
-							</goals>
-							<configuration>
-								<schemaLanguage>WSDL</schemaLanguage>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                </configuration>
+            </plugin>
 
-								<generateDirectory>src/main/java</generateDirectory>
-								<generatePackage>com.example.springboot.wsdl.mapping</generatePackage>
-								<schemas>
-									<schema>
-										<url>
-												https://auditoria.comerssia.com/PDPIntegracion/wsintegracion.asmx?wsdl
-											</url>
-									</schema>
-								</schemas>
-							</configuration>
-						</execution>
-					</executions>
-
-			</plugin>
-            <!-- end::wsdl[] -->
-		</plugins>
+        </plugins>
 	</build>
 
 </project>

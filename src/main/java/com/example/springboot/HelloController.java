@@ -1,69 +1,43 @@
 package com.example.springboot;
 
-import com.example.springboot.service.QADService;
-import com.example.springboot.wsdl.mapping.WmEnvioTransaccionesResponse;
+import com.example.springboot.dto.AccessToken;
+import com.example.springboot.service.FacadeQADService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.example.springboot.exception.RefreshTokenException;
 
 @RestController
 public class HelloController 
 {
 	@Autowired
-	private QADService qadService;
+	private FacadeQADService facadeQADService;
 
 	public HelloController() {
-		this.qadService = new QADService();
+		this.facadeQADService = new FacadeQADService();
 	}
 
 	@GetMapping("/ML")
 	public String index() {
 		try {
-			WmEnvioTransaccionesResponse response = this.qadService.getQADInfo();
-			String result = "Servicio Comerssia consumido correctamente: "+response.getWmEnvioTransaccionesResult().getContent().size();
-			for(Object resultr : response.getWmEnvioTransaccionesResult().getContent())
-				result = result + resultr.toString();
-			this.qadService.email((result), "QAD Comerssia");
-			return "OK";
-		} catch (Exception e) {
-			this.qadService.email(e.getMessage(), "QAD Comerssia");
-		}
-		return "FAIL";
-	}
+			AccessToken accessToken = this.facadeQADService.accessToken(this.facadeQADService.TGToken());
+			this.facadeQADService.ProcessOrdersAndShipping(accessToken.getAccess_token());
 
-	@GetMapping("/enviarTransactionCallBack")
-	public String enviarCallBack() {
-		try {
-			this.qadService.email("Servicio Comerssia consumido correctamente", "QAD Comerssia");
-			return "OK";
-
-		} catch (Exception e) {
-			this.qadService.email(e.getMessage(), "QAD Comerssia");
-		}
-		return "FAIL";
-	}
-
-	@GetMapping("/reportes")
-	public String reportes() {
-		try {
-			this.qadService.reportes();
-			return "OK";
-		} catch (Exception e) {
+		}catch (RefreshTokenException e) {
 			e.printStackTrace();
-		}
-		return "FAIL";
-	}
-
-
-	@GetMapping("/reportesCallBack")
-	public String reportesCallBack() {
-		try {
-			return "OK";
-		} catch (Exception e) {
+			this.facadeQADService.email(e.getMessage(), "MercadoLibre Refresh error: ");
+		} 
+		catch (Exception e) {
 			e.printStackTrace();
+			this.facadeQADService.email(e.getMessage(), "MercadoLibre error: ");
 		}
+		
 		return "FAIL";
 	}
+
+
+
 	
 
 }

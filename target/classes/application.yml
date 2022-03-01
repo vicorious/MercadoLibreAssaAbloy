@@ -2,7 +2,7 @@ spring:
   application:
     name: qacomerssia
   profiles:
-    active: ${PEDIDOS_APP_PROFILE:development}
+    active: ${MERCADOLIBREQAD_APP_PROFILE:development}
 
 # Logger configuration
 logging:
@@ -24,7 +24,7 @@ management:
 ---
 
 server:
-  port: ${DEV_PEDIDOS_APP_PORT:8081}
+  port: ${MERCADOLIBREQAD_APP_PORT:8081}
 
 spring:
   profiles: development
@@ -32,9 +32,18 @@ spring:
   # Database
   datasource:
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
-    username: ${DEV_PEDIDOS_DB_USERNAME}
-    password: ${DEV_PEDIDOS_DB_PASSWORD}
-    url: jdbc:sqlserver://${DEV_PEDIDOS_DB_HOST}:${DEV_PEDIDOS_DB_PORT};database=${DEV_PEDIDOS_DB_NAME};loginTimeout=30;
+    #username: ${MERCADOLIBREQAD_DB_USERNAME}
+    #password: ${MERCADOLIBREQAD_DB_PASSWORD}
+    #url: jdbc:sqlserver://${MERCADOLIBREQAD_DB_HOST}:${MERCADOLIBREQAD_DB_PORT};database=${MERCADOLIBREQAD_DB_NAME};loginTimeout=30;integratedSecurity=true
+    url: jdbc:sqlserver://localhost:1433;database=assaabloy;loginTimeout=30;integratedSecurity=true
+    initialization-mode: always
+    continue-on-error: true
+  # Database
+  datasource2:
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    username: ${MERCADOLIBREQAD_DB_USERNAME}
+    password: ${MERCADOLIBREQAD_DB_PASSWORD}
+    url: jdbc:sqlserver://${MERCADOLIBREQAD_DB_HOST}:${MERCADOLIBREQAD_DB_PORT};database=${MERCADOLIBREQAD_DB_NAME};loginTimeout=30;
     initialization-mode: always
     continue-on-error: true
   # JPA properties
@@ -46,7 +55,7 @@ spring:
     properties:
       hibernate:
         jdbc:
-          timezone: ${DEV_PEDIDOS_DB_TIMEZONE}
+          timezone: ${MERCADOLIBREQAD_DB_TIMEZONE}
         hbm2ddl:
           '[import_files_sql_extractor]': org.hibernate.tool.hbm2ddl.MultipleLinesSqlCommandExtractor
   rabbitmq:
@@ -61,10 +70,10 @@ spring:
         max-interval: 10000ms
         multiplier: 1
   mail:
-    host: relay.assaabloy.net
-    port: 25
-    username: noresponder@assaabloy.com 
-    password: Mx42Nbf7A6Hoz3YZi58R
+    host: smtp.gmail.com
+    port: 587
+    username: enslavement32@gmail.com
+    password: bbilxaaatitzxbok
     protocol: smtp
     tls: true
     properties.mail.smtp:
@@ -87,7 +96,7 @@ bus:
 ---
 
 server:
-  port: ${PEDIDOS_APP_PORT:8081}
+  port: ${MERCADOLIBREQAD_APP_PORT:8081}
 
 spring:
   profiles: production
@@ -95,9 +104,9 @@ spring:
   # Database
   datasource:
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
-    username: ${PEDIDOS_DB_USERNAME}
-    password: ${PEDIDOS_DB_PASSWORD}
-    url: jdbc:sqlserver://${PEDIDOS_DB_HOST}:${PEDIDOS_DB_PORT};database=${PEDIDOS_DB_NAME};loginTimeout=30;
+    username: ${MERCADOLIBREQAD_DB_USERNAME}
+    password: ${MERCADOLIBREQAD_DB_PASSWORD}
+    url: jdbc:sqlserver://${MERCADOLIBREQAD_DB_HOST}:${MERCADOLIBREQAD_DB_PORT};database=${MERCADOLIBREQAD_DB_NAME};loginTimeout=30;
     initialization-mode: never
     continue-on-error: true
   # JPA properties
@@ -109,7 +118,7 @@ spring:
     properties:
       hibernate:
         jdbc:
-          timezone: ${PEDIDOS_DB_TIMEZONE}
+          timezone: ${MERCADOLIBREQAD_DB_TIMEZONE}
         hbm2ddl:
           '[import_files_sql_extractor]': org.hibernate.tool.hbm2ddl.MultipleLinesSqlCommandExtractor
   rabbitmq:
