@@ -5,6 +5,7 @@ import com.example.springboot.service.FacadeQADService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.example.springboot.exception.RefreshTokenException;
 
@@ -19,11 +20,12 @@ public class HelloController
 	}
 
 	@GetMapping("/ML")
-	public String index() {
+	public synchronized String index(@RequestParam String code) {
 		try {
-			AccessToken accessToken = this.facadeQADService.accessToken(this.facadeQADService.TGToken());
+			AccessToken accessToken = this.facadeQADService.accessTokenML(code);
 			this.facadeQADService.ProcessOrdersAndShipping(accessToken.getAccess_token());
 
+			return "OK";
 		}catch (RefreshTokenException e) {
 			e.printStackTrace();
 			this.facadeQADService.email(e.getMessage(), "MercadoLibre Refresh error: ");

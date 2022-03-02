@@ -7,6 +7,7 @@ import com.example.springboot.utils.Constantes;
 import com.sun.net.httpserver.HttpContext;
 import org.apache.http.impl.client.DefaultRedirectStrategy;
 import org.apache.http.client.HttpClient;
+import org.apache.http.HttpResponse;
 import org.springframework.http.*;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -19,13 +20,28 @@ import org.springframework.web.client.RestTemplate;
 
 import com.example.springboot.exception.RefreshTokenException;
 
-import java.net.http.HttpResponse;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import java.io.FileWriter; 
+
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+
+
 
 @Component
 @Service
@@ -34,12 +50,18 @@ public class QADService
 
     String emailURI = "http://localhost:8081/comerssia/notificaciones";
 
+
+    org.slf4j.Logger logger = LoggerFactory.getLogger(QADService.class);
+
     /**
      *
      * @return Response
      * @throws Exception excepciones del servicio
      */
     public String getTGToken() throws Exception {
+
+        logger.info("getTGToken");
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -47,6 +69,8 @@ public class QADService
         params.put("response_type", Constantes.RESPONSE_TYPE);
         params.put("client_id", Constantes.APP_ID);
         params.put("redirect_uri", Constantes.REDIRECT_URI);
+
+        //logger.info("Parametros: "+params.toString());
 
         RestTemplate template = new RestTemplate();
         String url = Constantes.URL_TG_TOKEN;
@@ -68,7 +92,13 @@ public class QADService
                 url, HttpMethod.GET, requestEntity, String.class, params);
 
         HttpHeaders headersResponse = response.getHeaders();
-        headersResponse.get("Location");
+        headersResponse.forEach((key, value) -> {
+            logger.info(String.format("Header '%s' = %s", key, value));
+        });        
+
+        //logger.info("Response: "+response.getBody());
+        String location = response.getHeaders().getLocation() == null ? "" : response.getHeaders().getLocation().toString();
+        logger.info("Location: "+location);
 
 
         return response.getBody();
@@ -81,7 +111,7 @@ public class QADService
      * @throws Exception
      */
     public String getDummyTGToken() throws Exception {
-        return "TG-5b9032b4e23464aed1f959f-1234567";
+        return "TG-621f9cbadcd27d001bf8de73-31050589";
 
     }
 
@@ -93,6 +123,8 @@ public class QADService
     public AccessToken getAccessToken(String TGCode) throws RefreshTokenException {
         try
         {
+            logger.info("getAccessToken:");
+            logger.info("TGToken: "+TGCode);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
@@ -103,6 +135,8 @@ public class QADService
             map.add("code", TGCode);
             map.add("redirect_uri", Constantes.REDIRECT_URI);
 
+            //logger.info("Parametros: "+map.toString());
+
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<MultiValueMap<String, String>>(map, headers);
 
             RestTemplate template = new RestTemplate();
@@ -111,7 +145,9 @@ public class QADService
             return template.postForObject(url, request, AccessToken.class);
         }catch(Exception ex)
         {
-            this.email(ex.getMessage() + "<H1>SE INTENTARA CON EL REFRESHTOKEN</H1>", "Error en access token");
+            ex.printStackTrace();
+            logger.info("SE INTENTARA REFRESCAR EL TOKEN");
+            //this.email(ex.getMessage() + "<H1>SE INTENTARA CON EL REFRESHTOKEN</H1>", "Error en access token");
             return this.refreshAccessToken(TGCode);
         }
 
@@ -142,6 +178,29 @@ public class QADService
             map.add("client_id", Constantes.APP_ID);
             map.add("client_secret", Constantes.CLIENT_SECRET);
             map.add("refresh_token", previousTGToken);
+
+            String ip = new String();
+            String name = new String();
+
+            try(final DatagramSocket socket = new DatagramSocket()){
+                socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
+                ip = socket.getLocalAddress().getHostAddress();
+              }
+            
+            Path myPath = Paths.get(Constantes.FILE_TG);
+
+            if (Files.exists(myPath)) {
+                FileWriter myWriter = new FileWriter(Constantes.FILE_TG);
+                myWriter.write(previousTGToken.concat(" ip: ".concat(ip)));                
+                myWriter.close();
+                logger.info(Constantes.FILE_TG);
+            } else {            
+                Files.createFile(myPath);
+                FileWriter myWriter = new FileWriter(Constantes.FILE_TG);
+                myWriter.write(previousTGToken.concat(" ip: ".concat(ip)));
+                myWriter.close();
+                logger.info(Constantes.FILE_TG);
+            }
 
             HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<MultiValueMap<String, String>>(map, headers);
 
@@ -174,762 +233,1391 @@ public class QADService
     }
 
     public String dummyOrders(){
-        return "{\n" +
-                "  \"query\": \"\",\n" +
-                "  \"display\": \"complete\",\n" +
-                "  \"paging\": {\n" +
-                "    \"total\": 1,\n" +
-                "    \"offset\": 0,\n" +
-                "    \"limit\": 50\n" +
-                "  },\n" +
-                "  \"results\": [\n" +
-                "    {\n" +
-                "      \"id\": 1068825849,\n" +
-                "      \"comments\": null,\n" +
-                "      \"status\": \"paid\",\n" +
-                "      \"status_detail\": {\n" +
-                "        \"description\": null,\n" +
-                "        \"code\": null\n" +
-                "      },\n" +
-                "      \"date_created\": \"2016-02-25T15:53:38.000-04:00\",\n" +
-                "      \"date_closed\": \"2016-02-25T15:53:37.000-04:00\",\n" +
-                "      \"expiration_date\": \"2016-03-17T15:53:38.000-04:00\",\n" +
-                "      \"date_last_updated\": \"2016-02-25T15:55:44.973Z\",\n" +
-                "      \"hidden_for_seller\": false,\n" +
-                "      \"currency_id\": \"ARS\",\n" +
-                "      \"order_items\": [\n" +
-                "        {\n" +
-                "          \"currency_id\": \"ARS\",\n" +
-                "          \"item\": {\n" +
-                "            \"id\": \"MLA607850752\",\n" +
-                "            \"title\": \"Item De Testeo, Por Favor No Ofertar --kc:off\",\n" +
-                "            \"seller_custom_field\": null,\n" +
-                "            \"variation_attributes\": [\n" +
-                "            ],\n" +
-                "            \"category_id\": \"MLA3530\",\n" +
-                "            \"variation_id\": null\n" +
-                "          },\n" +
-                "          \"sale_fee\": 1.05,\n" +
-                "          \"quantity\": 1,\n" +
-                "          \"unit_price\": 10\n" +
-                "        }\n" +
-                "      ],\n" +
-                "      \"total_amount\": 10,\n" +
-                "      \"mediations\": [\n" +
-                "      ],\n" +
-                "      \"payments\": [\n" +
-                "        {\n" +
-                "          \"id\": 1833868697,\n" +
-                "          \"order_id\": 2000003508419013,\n" +
-                "          \"payer_id\": 207040551,\n" +
-                "          \"collector\": {\n" +
-                "            \"id\": 207035636\n" +
-                "          },\n" +
-                "          \"currency_id\": \"ARS\",\n" +
-                "          \"status\": \"approved\",\n" +
-                "          \"status_code\": \"0\",\n" +
-                "          \"status_detail\": \"accredited\",\n" +
-                "          \"transaction_amount\": 10,\n" +
-                "          \"shipping_cost\": 0,\n" +
-                "          \"overpaid_amount\": 0,\n" +
-                "          \"total_paid_amount\": 10,\n" +
-                "          \"marketplace_fee\": null,\n" +
-                "          \"coupon_amount\": 0,\n" +
-                "          \"date_created\": \"2016-02-25T15:55:42.000-04:00\",\n" +
-                "          \"date_last_modified\": \"2016-02-25T15:55:42.000-04:00\",\n" +
-                "          \"card_id\": null,\n" +
-                "          \"reason\": \"Item De Testeo, Por Favor No Ofertar --kc:off\",\n" +
-                "          \"activation_uri\": null,\n" +
-                "          \"payment_method_id\": \"diners\",\n" +
-                "          \"installments\": 9,\n" +
-                "          \"issuer_id\": \"1028\",\n" +
-                "          \"atm_transfer_reference\": {\n" +
-                "            \"company_id\": null,\n" +
-                "            \"transaction_id\": null\n" +
-                "          },\n" +
-                "          \"coupon_id\": null,\n" +
-                "          \"operation_type\": \"regular_payment\",\n" +
-                "          \"payment_type\": \"credit_card\",\n" +
-                "          \"available_actions\": [\n" +
-                "          ],\n" +
-                "          \"installment_amount\": 1.11,\n" +
-                "          \"deferred_period\": null,\n" +
-                "          \"date_approved\": \"2016-02-25T15:55:42.000-04:00\",\n" +
-                "          \"authorization_code\": \"1234567\",\n" +
-                "          \"transaction_order_id\": \"1234567\"\n" +
-                "        }\n" +
-                "      ],\n" +
-                "      \"shipping\": {\n" +
-                "        \"substatus\": null,\n" +
-                "        \"status\": \"to_be_agreed\",\n" +
-                "        \"id\": null,\n" +
-                "        \"service_id\": null,\n" +
-                "        \"currency_id\": null,\n" +
-                "        \"shipping_mode\": null,\n" +
-                "        \"shipment_type\": null,\n" +
-                "        \"sender_id\": null,\n" +
-                "        \"picking_type\": null,\n" +
-                "        \"date_created\": null,\n" +
-                "        \"cost\": null,\n" +
-                "        \"date_first_printed\": null\n" +
-                "      },\n" +
-                "      \"buyer\": {\n" +
-                "        \"id\": 207040551,\n" +
-                "        \"nickname\": \"TETE5029382\",\n" +
-                "        \"email\": \"test_user_97424966@testuser.com\",\n" +
-                "        \"phone\": {\n" +
-                "          \"area_code\": \"01\",\n" +
-                "          \"number\": \"1111-1111\",\n" +
-                "          \"extension\": \"\",\n" +
-                "          \"verified\": false\n" +
-                "        },\n" +
-                "        \"alternative_phone\": {\n" +
-                "          \"area_code\": \"\",\n" +
-                "          \"number\": \"\",\n" +
-                "          \"extension\": \"\"\n" +
-                "        },\n" +
-                "        \"first_name\": \"Test\",\n" +
-                "        \"last_name\": \"Test\",\n" +
-                "        \"billing_info\": {\n" +
-                "          \"doc_type\": null,\n" +
-                "          \"doc_number\": null\n" +
-                "        }\n" +
-                "      },\n" +
-                "      \"seller\": {\n" +
-                "        \"id\": 207035636,\n" +
-                "        \"nickname\": \"TETE9544096\",\n" +
-                "        \"email\": \"test_user_50828007@testuser.com\",\n" +
-                "        \"phone\": {\n" +
-                "          \"area_code\": \"01\",\n" +
-                "          \"number\": \"1111-1111\",\n" +
-                "          \"extension\": \"\",\n" +
-                "          \"verified\": false\n" +
-                "        },\n" +
-                "        \"alternative_phone\": {\n" +
-                "          \"area_code\": \"\",\n" +
-                "          \"number\": \"\",\n" +
-                "          \"extension\": \"\"\n" +
-                "        },\n" +
-                "        \"first_name\": \"Test\",\n" +
-                "        \"last_name\": \"Test\"\n" +
-                "      },\n" +
-                "      \"feedback\": {\n" +
-                "        \"sale\": null,\n" +
-                "        \"purchase\": null\n" +
-                "      },\n" +
-                "      \"tags\": [\n" +
-                "        \"not_delivered\",\n" +
-                "        \"paid\"\n" +
-                "      ]\n" +
-                "    }\n" +
-                "  ],\n" +
-                "  \"sort\": {\n" +
-                "    \"id\": \"date_asc\",\n" +
-                "    \"name\": \"Date ascending\"\n" +
-                "  },\n" +
-                "  \"available_sorts\": [\n" +
-                "    {\n" +
-                "      \"id\": \"date_desc\",\n" +
-                "      \"name\": \"Date descending\"\n" +
-                "    }\n" +
-                "  ],\n" +
-                "  \"filters\": [\n" +
-                "  ],\n" +
-                "  \"available_filters\": [\n" +
-                "    {\n" +
-                "      \"id\": \"order.status\",\n" +
-                "      \"name\": \"Order Status\",\n" +
-                "      \"type\": \"text\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"paid\",\n" +
-                "          \"name\": \"Order Paid\",\n" +
-                "          \"results\": 1\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"confirmed\",\n" +
-                "          \"name\": \"Order Confirmed\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"payment_in_process\",\n" +
-                "          \"name\": \"Payment in Process\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"payment_required\",\n" +
-                "          \"name\": \"Payment Required\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"cancelled\",\n" +
-                "          \"name\": \"Order Cancelled\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"invalid\",\n" +
-                "          \"name\": \"Invalid\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"id\": \"shipping.status\",\n" +
-                "      \"name\": \"Shipping Status\",\n" +
-                "      \"type\": \"text\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"to_be_agreed\",\n" +
-                "          \"name\": \"To be agreed\",\n" +
-                "          \"results\": 1\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"pending\",\n" +
-                "          \"name\": \"Pending\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"handling\",\n" +
-                "          \"name\": \"Handling\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"ready_to_ship\",\n" +
-                "          \"name\": \"Ready to ship\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"shipped\",\n" +
-                "          \"name\": \"Shipped\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"delivered\",\n" +
-                "          \"name\": \"Delivered\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"not_delivered\",\n" +
-                "          \"name\": \"Not delivered\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"not_verified\",\n" +
-                "          \"name\": \"Not verified\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"cancelled\",\n" +
-                "          \"name\": \"Cancelled\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"closed\",\n" +
-                "          \"name\": \"Closed\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"error\",\n" +
-                "          \"name\": \"Error\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"active\",\n" +
-                "          \"name\": \"Active\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"not_specified\",\n" +
-                "          \"name\": \"Not specified\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"stale_ready_to_ship\",\n" +
-                "          \"name\": \"Stale ready to ship\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"stale_shipped\",\n" +
-                "          \"name\": \"Stale shipped\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"id\": \"feedback.sale.rating\",\n" +
-                "      \"name\": \"Feedback rating\",\n" +
-                "      \"type\": \"text\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"negative\",\n" +
-                "          \"name\": \"Negative\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"neutral\",\n" +
-                "          \"name\": \"Neutral\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"positive\",\n" +
-                "          \"name\": \"Positive\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"id\": \"feedback.purchase.rating\",\n" +
-                "      \"name\": \"Feedback rating\",\n" +
-                "      \"type\": \"text\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"negative\",\n" +
-                "          \"name\": \"Negative\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"neutral\",\n" +
-                "          \"name\": \"Neutral\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"positive\",\n" +
-                "          \"name\": \"Positive\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"id\": \"feedback.sale.fulfilled\",\n" +
-                "      \"name\": \"Feedback sale fulfilled\",\n" +
-                "      \"type\": \"boolean\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"F\",\n" +
-                "          \"name\": \"Transaction was aborted\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"T\",\n" +
-                "          \"name\": \"Transaction actually happened\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"id\": \"feedback.purchase.fulfilled\",\n" +
-                "      \"name\": \"Feedback purchase fulfilled\",\n" +
-                "      \"type\": \"boolean\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"F\",\n" +
-                "          \"name\": \"Transaction was aborted\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"T\",\n" +
-                "          \"name\": \"Transaction actually happened\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"id\": \"shipping.service_id\",\n" +
-                "      \"name\": \"Shipping Service\",\n" +
-                "      \"type\": \"long\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"61\",\n" +
-                "          \"name\": \"Estándar\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"64\",\n" +
-                "          \"name\": \"Prioritario\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"151\",\n" +
-                "          \"name\": \"Estándar\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"154\",\n" +
-                "          \"name\": \"Prioritario\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"321\",\n" +
-                "          \"name\": \"Colecta Retiro Sucursal\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"341\",\n" +
-                "          \"name\": \"Estándar\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"251\",\n" +
-                "          \"name\": \"Otros\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"63\",\n" +
-                "          \"name\": \"Estándar\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"153\",\n" +
-                "          \"name\": \"Estándar\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"351\",\n" +
-                "          \"name\": \"Prioritario\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"311\",\n" +
-                "          \"name\": \"Colecta Normal\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"381\",\n" +
-                "          \"name\": \"Prioritario\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"62\",\n" +
-                "          \"name\": \"Prioritario\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"312\",\n" +
-                "          \"name\": \"Colecta Express\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"152\",\n" +
-                "          \"name\": \"Estándar\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"81\",\n" +
-                "          \"name\": \"Moto Express\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"id\": \"shipping.substatus\",\n" +
-                "      \"name\": \"Shipping Substatus\",\n" +
-                "      \"type\": \"text\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"cost_exceeded\",\n" +
-                "          \"name\": \"Cost exceeded\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"regenerating\",\n" +
-                "          \"name\": \"Regenerating\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"waiting_for_label_generation\",\n" +
-                "          \"name\": \"Waiting for label generation\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"ready_to_print\",\n" +
-                "          \"name\": \"Ready to print\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"invoice_pending\",\n" +
-                "          \"name\": \"Invoice pending\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"printed\",\n" +
-                "          \"name\": \"Printed\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"in_pickup_list\",\n" +
-                "          \"name\": \"In pikcup list\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"ready_for_pkl_creation\",\n" +
-                "          \"name\": \"Ready for pkl creation\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"ready_for_pickup\",\n" +
-                "          \"name\": \"Ready for pickup\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"picked_up\",\n" +
-                "          \"name\": \"Picked up\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"stale\",\n" +
-                "          \"name\": \"Stale shipped\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"in_hub\",\n" +
-                "          \"name\": \"In hub\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"measures_ready\",\n" +
-                "          \"name\": \"Measures and weight ready\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"waiting_for_carrier_authorization\",\n" +
-                "          \"name\": \"Waiting for carrier authorization\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"authorized_by_carrier\",\n" +
-                "          \"name\": \"Authorized by carrier\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"in_plp\",\n" +
-                "          \"name\": \"In PLP\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"delayed\",\n" +
-                "          \"name\": \"Delayed\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"waiting_for_withdrawal\",\n" +
-                "          \"name\": \"Waiting for withdrawal\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"contact_with_carrier_required\",\n" +
-                "          \"name\": \"Contact with carrier required\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"receiver_absent\",\n" +
-                "          \"name\": \"Receiver absent\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"reclaimed\",\n" +
-                "          \"name\": \"Reclaimed\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"not_localized\",\n" +
-                "          \"name\": \"Not localized\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"forwarded_to_third\",\n" +
-                "          \"name\": \"Forwarded to third party\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"soon_deliver\",\n" +
-                "          \"name\": \"Soon deliver\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"refused_delivery\",\n" +
-                "          \"name\": \"Delivery refused\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"bad_address\",\n" +
-                "          \"name\": \"Bad address\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"negative_feedback\",\n" +
-                "          \"name\": \"Stale shipped forced to not delivered due to negative feedback by buyer\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"need_review\",\n" +
-                "          \"name\": \"Need to review carrier status to understand what happened\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"damaged\",\n" +
-                "          \"name\": \"damaged\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"fulfilled_feedback\",\n" +
-                "          \"name\": \"Fulfilled by buyer feedback\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"no_action_taken\",\n" +
-                "          \"name\": \"No action taken by buyer\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"double_refund\",\n" +
-                "          \"name\": \"Double Refund\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"returning_to_sender\",\n" +
-                "          \"name\": \"Returning to sender\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"retained\",\n" +
-                "          \"name\": \"Retained\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"stolen\",\n" +
-                "          \"name\": \"Stolen\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"returned\",\n" +
-                "          \"name\": \"Returned\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"confiscated\",\n" +
-                "          \"name\": \"confiscated\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"to_review\",\n" +
-                "          \"name\": \"Closed shipment\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"destroyed\",\n" +
-                "          \"name\": \"Destroyed\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"claimed_me\",\n" +
-                "          \"name\": \"Stale shipped with claim that was forced to not delivered\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"id\": \"feedback.status\",\n" +
-                "      \"name\": \"Feedback Status\",\n" +
-                "      \"type\": \"text\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"pending\",\n" +
-                "          \"name\": \"Waiting for your feedback\",\n" +
-                "          \"results\": 1\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"waiting_buyer\",\n" +
-                "          \"name\": \"Waiting for Buyer's feedback\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"id\": \"tags\",\n" +
-                "      \"name\": \"Tags\",\n" +
-                "      \"type\": \"text\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"paid\",\n" +
-                "          \"name\": \"Order Paid\",\n" +
-                "          \"results\": 1\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"not_delivered\",\n" +
-                "          \"name\": \"Not Delivered\",\n" +
-                "          \"results\": 1\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"delivered\",\n" +
-                "          \"name\": \"Delivered\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"not_paid\",\n" +
-                "          \"name\": \"Order Not Paid\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"claim_closed\",\n" +
-                "          \"name\": \"Claim Closed\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"claim_opened\",\n" +
-                "          \"name\": \"Claim Opened\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"not_processed\",\n" +
-                "          \"name\": \"Not processed order\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"processed\",\n" +
-                "          \"name\": \"Processed order\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"id\": \"mediations.status\",\n" +
-                "      \"name\": \"Mediation Status\",\n" +
-                "      \"type\": \"text\",\n" +
-                "      \"values\": [\n" +
-                "        {\n" +
-                "          \"id\": \"claim_opened\",\n" +
-                "          \"name\": \"Claim opened\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"claim_closed\",\n" +
-                "          \"name\": \"Claim closed\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"dispute_opened\",\n" +
-                "          \"name\": \"Dispute opened\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"dispute_closed\",\n" +
-                "          \"name\": \"Dispute closed\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"seller_dispute_opened\",\n" +
-                "          \"name\": \"Seller dispute opened\",\n" +
-                "          \"results\": 0\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"id\": \"seller_dispute_closed\",\n" +
-                "          \"name\": \"Seller dispute closed\",\n" +
-                "          \"results\": 0\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}";
+        
+String myvar = "{"+
+"    \"query\": \"\","+
+"    \"results\": ["+
+"        {"+
+"            \"payments\": ["+
+"                {"+
+"                    \"reason\": \"Caja Fuerte Digital PequeÃ±a Yale EstÃ¡ndar - EconÃ³mica\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 212900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 212900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": \"2022-02-16T13:52:42.000-04:00\","+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 1,"+
+"                    \"authorization_code\": \"153709\","+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20245567041,"+
+"                    \"date_last_modified\": \"2022-02-19T13:05:31.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"refund\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": 212900,"+
+"                    \"date_created\": \"2022-02-16T13:52:39.000-04:00\","+
+"                    \"activation_uri\": null,"+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": 8874123957,"+
+"                    \"status_detail\": \"accredited\","+
+"                    \"issuer_id\": \"551\","+
+"                    \"payment_method_id\": \"visa\","+
+"                    \"payment_type\": \"credit_card\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": null,"+
+"                        \"company_id\": null"+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 146501701,"+
+"                    \"order_id\": 5267426494,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"approved\","+
+"                    \"transaction_order_id\": null"+
+"                }"+
+"            ],"+
+"            \"fulfilled\": true,"+
+"            \"taxes\": {"+
+"                \"amount\": null,"+
+"                \"currency_id\": null,"+
+"                \"id\": null"+
+"            },"+
+"            \"order_request\": {"+
+"                \"change\": null,"+
+"                \"return\": null"+
+"            },"+
+"            \"expiration_date\": \"2022-03-09T13:52:43.000-04:00\","+
+"            \"feedback\": {"+
+"                \"buyer\": null,"+
+"                \"seller\": null"+
+"            },"+
+"            \"shipping\": {"+
+"                \"id\": 41186698161"+
+"            },"+
+"            \"date_closed\": \"2022-02-16T13:52:43.000-04:00\","+
+"            \"id\": 5267426494,"+
+"            \"manufacturing_ending_date\": null,"+
+"            \"order_items\": ["+
+"                {"+
+"                    \"item\": {"+
+"                        \"id\": \"MCO585630568\","+
+"                        \"title\": \"Caja Fuerte Digital PequeÃ±a Yale EstÃ¡ndar - EconÃ³mica\","+
+"                        \"category_id\": \"MCO177806\","+
+"                        \"variation_id\": 65210327634,"+
+"                        \"seller_custom_field\": null,"+
+"                        \"global_price\": null,"+
+"                        \"net_weight\": null,"+
+"                        \"variation_attributes\": ["+
+"                            {"+
+"                                \"name\": \"Color\","+
+"                                \"id\": \"COLOR\","+
+"                                \"value_id\": \"52049\","+
+"                                \"value_name\": \"Negro\""+
+"                            }"+
+"                        ],"+
+"                        \"warranty\": \"GarantÃ­a de fÃ¡brica: 1 aÃ±os\","+
+"                        \"condition\": \"new\","+
+"                        \"seller_sku\": \"0035136\""+
+"                    },"+
+"                    \"quantity\": 1,"+
+"                    \"unit_price\": 212900,"+
+"                    \"full_unit_price\": 212900,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"manufacturing_days\": null,"+
+"                    \"picked_quantity\": null,"+
+"                    \"requested_quantity\": {"+
+"                        \"measure\": \"unit\","+
+"                        \"value\": 1"+
+"                    },"+
+"                    \"sale_fee\": 29806,"+
+"                    \"listing_type_id\": \"gold_special\","+
+"                    \"base_exchange_rate\": null,"+
+"                    \"base_currency_id\": null,"+
+"                    \"bundle\": null,"+
+"                    \"element_id\": null"+
+"                }"+
+"            ],"+
+"            \"date_last_updated\": \"2022-02-19T17:07:36.109Z\","+
+"            \"last_updated\": \"2022-02-19T13:07:35.000-04:00\","+
+"            \"comment\": null,"+
+"            \"pack_id\": null,"+
+"            \"coupon\": {"+
+"                \"amount\": 0,"+
+"                \"id\": null"+
+"            },"+
+"            \"shipping_cost\": null,"+
+"            \"date_created\": \"2022-02-16T13:52:38.000-04:00\","+
+"            \"pickup_id\": null,"+
+"            \"status_detail\": null,"+
+"            \"tags\": ["+
+"                \"delivered\","+
+"                \"paid\""+
+"            ],"+
+"            \"buyer\": {"+
+"                \"id\": 146501701,"+
+"                \"nickname\": \"PAAN9634804\""+
+"            },"+
+"            \"seller\": {"+
+"                \"id\": 268091189,"+
+"                \"nickname\": \"YALE COLOMBIA\""+
+"            },"+
+"            \"total_amount\": 212900,"+
+"            \"paid_amount\": 212900,"+
+"            \"currency_id\": \"COP\","+
+"            \"status\": \"paid\""+
+"        },"+
+"        {"+
+"            \"payments\": ["+
+"                {"+
+"                    \"reason\": \"Caja De Efectivo Mediana - Cash Box - Caja Menor\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 58900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 58900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": \"2022-02-16T21:53:49.000-04:00\","+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 1,"+
+"                    \"authorization_code\": \"205349\","+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20256986872,"+
+"                    \"date_last_modified\": \"2022-02-23T22:50:25.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"refund\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": 58900,"+
+"                    \"date_created\": \"2022-02-16T21:53:47.000-04:00\","+
+"                    \"activation_uri\": null,"+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": 9041630988,"+
+"                    \"status_detail\": \"accredited\","+
+"                    \"issuer_id\": \"204\","+
+"                    \"payment_method_id\": \"debmaster\","+
+"                    \"payment_type\": \"debit_card\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": null,"+
+"                        \"company_id\": null"+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 119595591,"+
+"                    \"order_id\": 5268762230,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"approved\","+
+"                    \"transaction_order_id\": null"+
+"                }"+
+"            ],"+
+"            \"fulfilled\": true,"+
+"            \"taxes\": {"+
+"                \"amount\": null,"+
+"                \"currency_id\": null,"+
+"                \"id\": null"+
+"            },"+
+"            \"order_request\": {"+
+"                \"change\": null,"+
+"                \"return\": null"+
+"            },"+
+"            \"expiration_date\": \"2022-03-09T21:53:49.000-04:00\","+
+"            \"feedback\": {"+
+"                \"buyer\": null,"+
+"                \"seller\": null"+
+"            },"+
+"            \"shipping\": {"+
+"                \"id\": 41187854003"+
+"            },"+
+"            \"date_closed\": \"2022-02-16T21:53:49.000-04:00\","+
+"            \"id\": 5268762230,"+
+"            \"manufacturing_ending_date\": null,"+
+"            \"order_items\": ["+
+"                {"+
+"                    \"item\": {"+
+"                        \"id\": \"MCO561857620\","+
+"                        \"title\": \"Caja De Efectivo Mediana - Cash Box - Caja Menor\","+
+"                        \"category_id\": \"MCO177805\","+
+"                        \"variation_id\": null,"+
+"                        \"seller_custom_field\": null,"+
+"                        \"global_price\": null,"+
+"                        \"net_weight\": null,"+
+"                        \"variation_attributes\": [],"+
+"                        \"warranty\": \"GarantÃ­a de fÃ¡brica: 1 aÃ±os\","+
+"                        \"condition\": \"new\","+
+"                        \"seller_sku\": \"0011292\""+
+"                    },"+
+"                    \"quantity\": 1,"+
+"                    \"unit_price\": 58900,"+
+"                    \"full_unit_price\": 58900,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"manufacturing_days\": null,"+
+"                    \"picked_quantity\": null,"+
+"                    \"requested_quantity\": {"+
+"                        \"measure\": \"unit\","+
+"                        \"value\": 1"+
+"                    },"+
+"                    \"sale_fee\": 9246,"+
+"                    \"listing_type_id\": \"gold_special\","+
+"                    \"base_exchange_rate\": null,"+
+"                    \"base_currency_id\": null,"+
+"                    \"bundle\": null,"+
+"                    \"element_id\": null"+
+"                }"+
+"            ],"+
+"            \"date_last_updated\": \"2022-02-24T02:52:30.875Z\","+
+"            \"last_updated\": \"2022-02-23T22:52:30.000-04:00\","+
+"            \"comment\": null,"+
+"            \"pack_id\": null,"+
+"            \"coupon\": {"+
+"                \"amount\": 0,"+
+"                \"id\": null"+
+"            },"+
+"            \"shipping_cost\": null,"+
+"            \"date_created\": \"2022-02-16T21:53:46.000-04:00\","+
+"            \"pickup_id\": null,"+
+"            \"status_detail\": null,"+
+"            \"tags\": ["+
+"                \"delivered\","+
+"                \"paid\""+
+"            ],"+
+"            \"buyer\": {"+
+"                \"id\": 119595591,"+
+"                \"nickname\": \"GALÃ‰NICA\""+
+"            },"+
+"            \"seller\": {"+
+"                \"id\": 268091189,"+
+"                \"nickname\": \"YALE COLOMBIA\""+
+"            },"+
+"            \"total_amount\": 58900,"+
+"            \"paid_amount\": 58900,"+
+"            \"currency_id\": \"COP\","+
+"            \"status\": \"paid\""+
+"        },"+
+"        {"+
+"            \"payments\": ["+
+"                {"+
+"                    \"reason\": \"Caja De Seguridad Yale Para Llaves Con CombinaciÃ³n\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 122900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 122900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": \"2022-02-16T22:10:42.000-04:00\","+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 1,"+
+"                    \"authorization_code\": \"096340\","+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20257243344,"+
+"                    \"date_last_modified\": \"2022-02-19T13:57:47.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"refund\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": 122900,"+
+"                    \"date_created\": \"2022-02-16T22:10:37.000-04:00\","+
+"                    \"activation_uri\": null,"+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": 9001976666,"+
+"                    \"status_detail\": \"accredited\","+
+"                    \"issuer_id\": \"205\","+
+"                    \"payment_method_id\": \"visa\","+
+"                    \"payment_type\": \"credit_card\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": null,"+
+"                        \"company_id\": null"+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 188411509,"+
+"                    \"order_id\": 5268803057,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"approved\","+
+"                    \"transaction_order_id\": null"+
+"                }"+
+"            ],"+
+"            \"fulfilled\": true,"+
+"            \"taxes\": {"+
+"                \"amount\": null,"+
+"                \"currency_id\": null,"+
+"                \"id\": null"+
+"            },"+
+"            \"order_request\": {"+
+"                \"change\": null,"+
+"                \"return\": null"+
+"            },"+
+"            \"expiration_date\": \"2022-03-09T22:10:42.000-04:00\","+
+"            \"feedback\": {"+
+"                \"buyer\": null,"+
+"                \"seller\": null"+
+"            },"+
+"            \"shipping\": {"+
+"                \"id\": 41187887496"+
+"            },"+
+"            \"date_closed\": \"2022-02-16T22:10:42.000-04:00\","+
+"            \"id\": 5268803057,"+
+"            \"manufacturing_ending_date\": null,"+
+"            \"order_items\": ["+
+"                {"+
+"                    \"item\": {"+
+"                        \"id\": \"MCO585665769\","+
+"                        \"title\": \"Caja De Seguridad Yale Para Llaves Con CombinaciÃ³n\","+
+"                        \"category_id\": \"MCO172798\","+
+"                        \"variation_id\": null,"+
+"                        \"seller_custom_field\": null,"+
+"                        \"global_price\": null,"+
+"                        \"net_weight\": null,"+
+"                        \"variation_attributes\": [],"+
+"                        \"warranty\": \"GarantÃ­a de fÃ¡brica: 1 aÃ±os\","+
+"                        \"condition\": \"new\","+
+"                        \"seller_sku\": \"0016144\""+
+"                    },"+
+"                    \"quantity\": 1,"+
+"                    \"unit_price\": 122900,"+
+"                    \"full_unit_price\": 122900,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"manufacturing_days\": null,"+
+"                    \"picked_quantity\": null,"+
+"                    \"requested_quantity\": {"+
+"                        \"measure\": \"unit\","+
+"                        \"value\": 1"+
+"                    },"+
+"                    \"sale_fee\": 17206,"+
+"                    \"listing_type_id\": \"gold_special\","+
+"                    \"base_exchange_rate\": null,"+
+"                    \"base_currency_id\": null,"+
+"                    \"bundle\": null,"+
+"                    \"element_id\": null"+
+"                }"+
+"            ],"+
+"            \"date_last_updated\": \"2022-02-19T17:59:53.606Z\","+
+"            \"last_updated\": \"2022-02-19T13:59:53.000-04:00\","+
+"            \"comment\": null,"+
+"            \"pack_id\": null,"+
+"            \"coupon\": {"+
+"                \"amount\": 0,"+
+"                \"id\": null"+
+"            },"+
+"            \"shipping_cost\": null,"+
+"            \"date_created\": \"2022-02-16T22:10:37.000-04:00\","+
+"            \"pickup_id\": null,"+
+"            \"status_detail\": null,"+
+"            \"tags\": ["+
+"                \"delivered\","+
+"                \"paid\""+
+"            ],"+
+"            \"buyer\": {"+
+"                \"id\": 188411509,"+
+"                \"nickname\": \"HCTORLEONARDOMILLNVEGA\""+
+"            },"+
+"            \"seller\": {"+
+"                \"id\": 268091189,"+
+"                \"nickname\": \"YALE COLOMBIA\""+
+"            },"+
+"            \"total_amount\": 122900,"+
+"            \"paid_amount\": 122900,"+
+"            \"currency_id\": \"COP\","+
+"            \"status\": \"paid\""+
+"        },"+
+"        {"+
+"            \"payments\": ["+
+"                {"+
+"                    \"reason\": \"Caja Fuerte Digital PequeÃ±a\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 262900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 262900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": \"2022-02-20T13:08:11.000-04:00\","+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 1,"+
+"                    \"authorization_code\": \"T08338\","+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20336707359,"+
+"                    \"date_last_modified\": \"2022-02-25T12:48:14.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"refund\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": 262900,"+
+"                    \"date_created\": \"2022-02-20T13:08:09.000-04:00\","+
+"                    \"activation_uri\": null,"+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": null,"+
+"                    \"status_detail\": \"accredited\","+
+"                    \"issuer_id\": \"551\","+
+"                    \"payment_method_id\": \"master\","+
+"                    \"payment_type\": \"credit_card\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": null,"+
+"                        \"company_id\": null"+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 17436089,"+
+"                    \"order_id\": 5276712230,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"approved\","+
+"                    \"transaction_order_id\": null"+
+"                }"+
+"            ],"+
+"            \"fulfilled\": true,"+
+"            \"taxes\": {"+
+"                \"amount\": null,"+
+"                \"currency_id\": null,"+
+"                \"id\": null"+
+"            },"+
+"            \"order_request\": {"+
+"                \"change\": null,"+
+"                \"return\": null"+
+"            },"+
+"            \"expiration_date\": \"2022-03-13T13:08:11.000-04:00\","+
+"            \"feedback\": {"+
+"                \"buyer\": null,"+
+"                \"seller\": null"+
+"            },"+
+"            \"shipping\": {"+
+"                \"id\": 41194717790"+
+"            },"+
+"            \"date_closed\": \"2022-02-20T13:08:11.000-04:00\","+
+"            \"id\": 5276712230,"+
+"            \"manufacturing_ending_date\": null,"+
+"            \"order_items\": ["+
+"                {"+
+"                    \"item\": {"+
+"                        \"id\": \"MCO457285928\","+
+"                        \"title\": \"Caja Fuerte Digital PequeÃ±a\","+
+"                        \"category_id\": \"MCO177806\","+
+"                        \"variation_id\": null,"+
+"                        \"seller_custom_field\": \"0035102\","+
+"                        \"global_price\": null,"+
+"                        \"net_weight\": null,"+
+"                        \"variation_attributes\": [],"+
+"                        \"warranty\": \"GarantÃ­a de 1 aÃ±o a partir de la fecha de compra. La instalaciÃ³n debe ser realizada por un tÃ©cnico Yale certificado.\","+
+"                        \"condition\": \"new\","+
+"                        \"seller_sku\": null"+
+"                    },"+
+"                    \"quantity\": 1,"+
+"                    \"unit_price\": 262900,"+
+"                    \"full_unit_price\": 262900,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"manufacturing_days\": null,"+
+"                    \"picked_quantity\": null,"+
+"                    \"requested_quantity\": {"+
+"                        \"measure\": \"unit\","+
+"                        \"value\": 1"+
+"                    },"+
+"                    \"sale_fee\": 36806,"+
+"                    \"listing_type_id\": \"gold_special\","+
+"                    \"base_exchange_rate\": null,"+
+"                    \"base_currency_id\": null,"+
+"                    \"bundle\": null,"+
+"                    \"element_id\": null"+
+"                }"+
+"            ],"+
+"            \"date_last_updated\": \"2022-02-25T16:50:48.127Z\","+
+"            \"last_updated\": \"2022-02-25T12:50:20.000-04:00\","+
+"            \"comment\": null,"+
+"            \"pack_id\": null,"+
+"            \"coupon\": {"+
+"                \"amount\": 0,"+
+"                \"id\": null"+
+"            },"+
+"            \"shipping_cost\": null,"+
+"            \"date_created\": \"2022-02-20T13:08:08.000-04:00\","+
+"            \"pickup_id\": null,"+
+"            \"status_detail\": null,"+
+"            \"tags\": ["+
+"                \"delivered\","+
+"                \"paid\""+
+"            ],"+
+"            \"buyer\": {"+
+"                \"id\": 17436089,"+
+"                \"nickname\": \"JUCAR87\""+
+"            },"+
+"            \"seller\": {"+
+"                \"id\": 268091189,"+
+"                \"nickname\": \"YALE COLOMBIA\""+
+"            },"+
+"            \"total_amount\": 262900,"+
+"            \"paid_amount\": 262900,"+
+"            \"currency_id\": \"COP\","+
+"            \"status\": \"paid\""+
+"        },"+
+"        {"+
+"            \"payments\": ["+
+"                {"+
+"                    \"reason\": \"Caja De Efectivo Grande - Cash Box - Caja Menor\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 70900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 70900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": \"2022-02-22T13:23:39.000-04:00\","+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 1,"+
+"                    \"authorization_code\": \"421701\","+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20380318063,"+
+"                    \"date_last_modified\": \"2022-02-28T11:41:31.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"refund\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": 70900,"+
+"                    \"date_created\": \"2022-02-22T13:23:36.000-04:00\","+
+"                    \"activation_uri\": null,"+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": 9032572682,"+
+"                    \"status_detail\": \"accredited\","+
+"                    \"issuer_id\": \"12475\","+
+"                    \"payment_method_id\": \"visa\","+
+"                    \"payment_type\": \"credit_card\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": null,"+
+"                        \"company_id\": null"+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 188732854,"+
+"                    \"order_id\": 5282276103,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"approved\","+
+"                    \"transaction_order_id\": null"+
+"                }"+
+"            ],"+
+"            \"fulfilled\": true,"+
+"            \"taxes\": {"+
+"                \"amount\": null,"+
+"                \"currency_id\": null,"+
+"                \"id\": null"+
+"            },"+
+"            \"order_request\": {"+
+"                \"change\": null,"+
+"                \"return\": null"+
+"            },"+
+"            \"expiration_date\": \"2022-03-15T13:23:40.000-04:00\","+
+"            \"feedback\": {"+
+"                \"buyer\": null,"+
+"                \"seller\": null"+
+"            },"+
+"            \"shipping\": {"+
+"                \"id\": 41199517351"+
+"            },"+
+"            \"date_closed\": \"2022-02-22T13:23:40.000-04:00\","+
+"            \"id\": 5282276103,"+
+"            \"manufacturing_ending_date\": null,"+
+"            \"order_items\": ["+
+"                {"+
+"                    \"item\": {"+
+"                        \"id\": \"MCO558873656\","+
+"                        \"title\": \"Caja De Efectivo Grande - Cash Box - Caja Menor\","+
+"                        \"category_id\": \"MCO177805\","+
+"                        \"variation_id\": 54065926425,"+
+"                        \"seller_custom_field\": null,"+
+"                        \"global_price\": null,"+
+"                        \"net_weight\": null,"+
+"                        \"variation_attributes\": ["+
+"                            {"+
+"                                \"name\": \"Color\","+
+"                                \"id\": \"COLOR\","+
+"                                \"value_id\": null,"+
+"                                \"value_name\": \"Negro\""+
+"                            }"+
+"                        ],"+
+"                        \"warranty\": \"GarantÃ­a de fÃ¡brica: 1 aÃ±os\","+
+"                        \"condition\": \"new\","+
+"                        \"seller_sku\": \"0011293\""+
+"                    },"+
+"                    \"quantity\": 1,"+
+"                    \"unit_price\": 70900,"+
+"                    \"full_unit_price\": 70900,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"manufacturing_days\": null,"+
+"                    \"picked_quantity\": null,"+
+"                    \"requested_quantity\": {"+
+"                        \"measure\": \"unit\","+
+"                        \"value\": 1"+
+"                    },"+
+"                    \"sale_fee\": 9926,"+
+"                    \"listing_type_id\": \"gold_special\","+
+"                    \"base_exchange_rate\": null,"+
+"                    \"base_currency_id\": null,"+
+"                    \"bundle\": null,"+
+"                    \"element_id\": null"+
+"                }"+
+"            ],"+
+"            \"date_last_updated\": \"2022-02-28T15:43:37.371Z\","+
+"            \"last_updated\": \"2022-02-28T11:43:36.000-04:00\","+
+"            \"comment\": null,"+
+"            \"pack_id\": null,"+
+"            \"coupon\": {"+
+"                \"amount\": 0,"+
+"                \"id\": null"+
+"            },"+
+"            \"shipping_cost\": null,"+
+"            \"date_created\": \"2022-02-22T13:23:35.000-04:00\","+
+"            \"pickup_id\": null,"+
+"            \"status_detail\": null,"+
+"            \"tags\": ["+
+"                \"delivered\","+
+"                \"paid\""+
+"            ],"+
+"            \"buyer\": {"+
+"                \"id\": 188732854,"+
+"                \"nickname\": \"MORALESDUVERNEY\""+
+"            },"+
+"            \"seller\": {"+
+"                \"id\": 268091189,"+
+"                \"nickname\": \"YALE COLOMBIA\""+
+"            },"+
+"            \"total_amount\": 70900,"+
+"            \"paid_amount\": 70900,"+
+"            \"currency_id\": \"COP\","+
+"            \"status\": \"paid\""+
+"        },"+
+"        {"+
+"            \"payments\": ["+
+"                {"+
+"                    \"reason\": \"Caja Fuerte Digital PequeÃ±a\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 262900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 262900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": null,"+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 1,"+
+"                    \"authorization_code\": null,"+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20392015270,"+
+"                    \"date_last_modified\": \"2022-02-23T13:50:26.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": null,"+
+"                    \"date_created\": \"2022-02-22T22:00:51.000-04:00\","+
+"                    \"activation_uri\": \"https://www.mercadolibre.com.co/payments/20392015270/ticket?caller_id=133919085&payment_method_id=efecty&payment_id=20392015270&payment_method_reference_id=9933505607&hash=12ffbf14-2a69-4c4a-9134-455cba823812\","+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": null,"+
+"                    \"status_detail\": \"by_payer\","+
+"                    \"issuer_id\": null,"+
+"                    \"payment_method_id\": \"efecty\","+
+"                    \"payment_type\": \"ticket\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": \"9933505607\","+
+"                        \"company_id\": null"+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 133919085,"+
+"                    \"order_id\": 5283717867,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"cancelled\","+
+"                    \"transaction_order_id\": null"+
+"                },"+
+"                {"+
+"                    \"reason\": \"Caja Fuerte Digital PequeÃ±a\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 262900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 262900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": \"2022-02-23T13:53:20.000-04:00\","+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 1,"+
+"                    \"authorization_code\": null,"+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20403807370,"+
+"                    \"date_last_modified\": \"2022-02-28T18:15:10.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"refund\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": null,"+
+"                    \"date_created\": \"2022-02-23T13:50:26.000-04:00\","+
+"                    \"activation_uri\": \"https://www.mercadopago.com/mco/payments/bank_transfer/helper?payment_id=20403807370&caller_id=133919085&hash=a0814888-b0e8-43a4-b873-c2a599a3c89b\","+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": null,"+
+"                    \"status_detail\": \"accredited\","+
+"                    \"issuer_id\": null,"+
+"                    \"payment_method_id\": \"pse\","+
+"                    \"payment_type\": \"bank_transfer\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": null,"+
+"                        \"company_id\": \"1507\""+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 133919085,"+
+"                    \"order_id\": 5283717867,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"approved\","+
+"                    \"transaction_order_id\": null"+
+"                }"+
+"            ],"+
+"            \"fulfilled\": true,"+
+"            \"taxes\": {"+
+"                \"amount\": null,"+
+"                \"currency_id\": null,"+
+"                \"id\": null"+
+"            },"+
+"            \"order_request\": {"+
+"                \"change\": null,"+
+"                \"return\": null"+
+"            },"+
+"            \"expiration_date\": \"2022-03-16T13:55:22.000-04:00\","+
+"            \"feedback\": {"+
+"                \"buyer\": null,"+
+"                \"seller\": null"+
+"            },"+
+"            \"shipping\": {"+
+"                \"id\": 41200775131"+
+"            },"+
+"            \"date_closed\": \"2022-02-23T13:55:22.000-04:00\","+
+"            \"id\": 5283717867,"+
+"            \"manufacturing_ending_date\": null,"+
+"            \"order_items\": ["+
+"                {"+
+"                    \"item\": {"+
+"                        \"id\": \"MCO457285928\","+
+"                        \"title\": \"Caja Fuerte Digital PequeÃ±a\","+
+"                        \"category_id\": \"MCO177806\","+
+"                        \"variation_id\": null,"+
+"                        \"seller_custom_field\": \"0035102\","+
+"                        \"global_price\": null,"+
+"                        \"net_weight\": null,"+
+"                        \"variation_attributes\": [],"+
+"                        \"warranty\": \"GarantÃ­a de 1 aÃ±o a partir de la fecha de compra. La instalaciÃ³n debe ser realizada por un tÃ©cnico Yale certificado.\","+
+"                        \"condition\": \"new\","+
+"                        \"seller_sku\": null"+
+"                    },"+
+"                    \"quantity\": 1,"+
+"                    \"unit_price\": 262900,"+
+"                    \"full_unit_price\": 262900,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"manufacturing_days\": null,"+
+"                    \"picked_quantity\": null,"+
+"                    \"requested_quantity\": {"+
+"                        \"measure\": \"unit\","+
+"                        \"value\": 1"+
+"                    },"+
+"                    \"sale_fee\": 36806,"+
+"                    \"listing_type_id\": \"gold_special\","+
+"                    \"base_exchange_rate\": null,"+
+"                    \"base_currency_id\": null,"+
+"                    \"bundle\": null,"+
+"                    \"element_id\": null"+
+"                }"+
+"            ],"+
+"            \"date_last_updated\": \"2022-02-28T22:17:16.162Z\","+
+"            \"last_updated\": \"2022-02-28T18:17:15.000-04:00\","+
+"            \"comment\": null,"+
+"            \"pack_id\": null,"+
+"            \"coupon\": {"+
+"                \"amount\": 0,"+
+"                \"id\": null"+
+"            },"+
+"            \"shipping_cost\": null,"+
+"            \"date_created\": \"2022-02-22T22:00:51.000-04:00\","+
+"            \"pickup_id\": null,"+
+"            \"status_detail\": null,"+
+"            \"tags\": ["+
+"                \"delivered\","+
+"                \"paid\""+
+"            ],"+
+"            \"buyer\": {"+
+"                \"id\": 133919085,"+
+"                \"nickname\": \"LINDASACHICA\""+
+"            },"+
+"            \"seller\": {"+
+"                \"id\": 268091189,"+
+"                \"nickname\": \"YALE COLOMBIA\""+
+"            },"+
+"            \"total_amount\": 262900,"+
+"            \"paid_amount\": 262900,"+
+"            \"currency_id\": \"COP\","+
+"            \"status\": \"paid\""+
+"        },"+
+"        {"+
+"            \"payments\": ["+
+"                {"+
+"                    \"reason\": \"Caja Fuerte Mediana\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 318900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 318900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": \"2022-02-25T17:13:36.000-04:00\","+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 1,"+
+"                    \"authorization_code\": \"161336\","+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20456978089,"+
+"                    \"date_last_modified\": \"2022-03-02T10:58:18.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"refund\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": 318900,"+
+"                    \"date_created\": \"2022-02-25T17:13:33.000-04:00\","+
+"                    \"activation_uri\": null,"+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": null,"+
+"                    \"status_detail\": \"accredited\","+
+"                    \"issuer_id\": \"12467\","+
+"                    \"payment_method_id\": \"visa\","+
+"                    \"payment_type\": \"credit_card\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": null,"+
+"                        \"company_id\": null"+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 235724947,"+
+"                    \"order_id\": 5290740509,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"approved\","+
+"                    \"transaction_order_id\": null"+
+"                }"+
+"            ],"+
+"            \"fulfilled\": true,"+
+"            \"taxes\": {"+
+"                \"amount\": null,"+
+"                \"currency_id\": null,"+
+"                \"id\": null"+
+"            },"+
+"            \"order_request\": {"+
+"                \"change\": null,"+
+"                \"return\": null"+
+"            },"+
+"            \"expiration_date\": \"2022-03-18T17:13:37.000-04:00\","+
+"            \"feedback\": {"+
+"                \"buyer\": null,"+
+"                \"seller\": null"+
+"            },"+
+"            \"shipping\": {"+
+"                \"id\": 41206848852"+
+"            },"+
+"            \"date_closed\": \"2022-02-25T17:13:37.000-04:00\","+
+"            \"id\": 5290740509,"+
+"            \"manufacturing_ending_date\": null,"+
+"            \"order_items\": ["+
+"                {"+
+"                    \"item\": {"+
+"                        \"id\": \"MCO517574654\","+
+"                        \"title\": \"Caja Fuerte Mediana\","+
+"                        \"category_id\": \"MCO177806\","+
+"                        \"variation_id\": null,"+
+"                        \"seller_custom_field\": null,"+
+"                        \"global_price\": null,"+
+"                        \"net_weight\": null,"+
+"                        \"variation_attributes\": [],"+
+"                        \"warranty\": \"GarantÃ­a de fÃ¡brica: 1 aÃ±os\","+
+"                        \"condition\": \"new\","+
+"                        \"seller_sku\": \"0035100\""+
+"                    },"+
+"                    \"quantity\": 1,"+
+"                    \"unit_price\": 318900,"+
+"                    \"full_unit_price\": 318900,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"manufacturing_days\": null,"+
+"                    \"picked_quantity\": null,"+
+"                    \"requested_quantity\": {"+
+"                        \"measure\": \"unit\","+
+"                        \"value\": 1"+
+"                    },"+
+"                    \"sale_fee\": 44646,"+
+"                    \"listing_type_id\": \"gold_special\","+
+"                    \"base_exchange_rate\": null,"+
+"                    \"base_currency_id\": null,"+
+"                    \"bundle\": null,"+
+"                    \"element_id\": null"+
+"                }"+
+"            ],"+
+"            \"date_last_updated\": \"2022-03-02T15:00:23.866Z\","+
+"            \"last_updated\": \"2022-03-02T11:00:23.000-04:00\","+
+"            \"comment\": null,"+
+"            \"pack_id\": null,"+
+"            \"coupon\": {"+
+"                \"amount\": 0,"+
+"                \"id\": null"+
+"            },"+
+"            \"shipping_cost\": null,"+
+"            \"date_created\": \"2022-02-25T17:13:33.000-04:00\","+
+"            \"pickup_id\": null,"+
+"            \"status_detail\": null,"+
+"            \"tags\": ["+
+"                \"delivered\","+
+"                \"paid\""+
+"            ],"+
+"            \"buyer\": {"+
+"                \"id\": 235724947,"+
+"                \"nickname\": \"YANITHMORA\""+
+"            },"+
+"            \"seller\": {"+
+"                \"id\": 268091189,"+
+"                \"nickname\": \"YALE COLOMBIA\""+
+"            },"+
+"            \"total_amount\": 318900,"+
+"            \"paid_amount\": 318900,"+
+"            \"currency_id\": \"COP\","+
+"            \"status\": \"paid\""+
+"        },"+
+"        {"+
+"            \"payments\": ["+
+"                {"+
+"                    \"reason\": \"Caja De Seguridad Yale Para Llaves Con CombinaciÃ³n\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 122900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 122900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": \"2022-02-26T23:55:47.000-04:00\","+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 1,"+
+"                    \"authorization_code\": \"205967\","+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20489442800,"+
+"                    \"date_last_modified\": \"2022-02-26T23:57:45.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"refund\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": 122900,"+
+"                    \"date_created\": \"2022-02-26T23:55:45.000-04:00\","+
+"                    \"activation_uri\": null,"+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": 9044256831,"+
+"                    \"status_detail\": \"accredited\","+
+"                    \"issuer_id\": \"12475\","+
+"                    \"payment_method_id\": \"master\","+
+"                    \"payment_type\": \"credit_card\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": null,"+
+"                        \"company_id\": null"+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 202459957,"+
+"                    \"order_id\": 5293127910,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"approved\","+
+"                    \"transaction_order_id\": null"+
+"                }"+
+"            ],"+
+"            \"fulfilled\": null,"+
+"            \"taxes\": {"+
+"                \"amount\": null,"+
+"                \"currency_id\": null,"+
+"                \"id\": null"+
+"            },"+
+"            \"order_request\": {"+
+"                \"change\": null,"+
+"                \"return\": null"+
+"            },"+
+"            \"expiration_date\": \"2022-03-19T23:55:47.000-04:00\","+
+"            \"feedback\": {"+
+"                \"buyer\": null,"+
+"                \"seller\": null"+
+"            },"+
+"            \"shipping\": {"+
+"                \"id\": 41208892525"+
+"            },"+
+"            \"date_closed\": \"2022-02-26T23:55:47.000-04:00\","+
+"            \"id\": 5293127910,"+
+"            \"manufacturing_ending_date\": null,"+
+"            \"order_items\": ["+
+"                {"+
+"                    \"item\": {"+
+"                        \"id\": \"MCO585665769\","+
+"                        \"title\": \"Caja De Seguridad Yale Para Llaves Con CombinaciÃ³n\","+
+"                        \"category_id\": \"MCO172798\","+
+"                        \"variation_id\": null,"+
+"                        \"seller_custom_field\": null,"+
+"                        \"global_price\": null,"+
+"                        \"net_weight\": null,"+
+"                        \"variation_attributes\": [],"+
+"                        \"warranty\": \"GarantÃ­a de fÃ¡brica: 1 aÃ±os\","+
+"                        \"condition\": \"new\","+
+"                        \"seller_sku\": \"0016144\""+
+"                    },"+
+"                    \"quantity\": 1,"+
+"                    \"unit_price\": 122900,"+
+"                    \"full_unit_price\": 122900,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"manufacturing_days\": null,"+
+"                    \"picked_quantity\": null,"+
+"                    \"requested_quantity\": {"+
+"                        \"measure\": \"unit\","+
+"                        \"value\": 1"+
+"                    },"+
+"                    \"sale_fee\": 17206,"+
+"                    \"listing_type_id\": \"gold_special\","+
+"                    \"base_exchange_rate\": null,"+
+"                    \"base_currency_id\": null,"+
+"                    \"bundle\": null,"+
+"                    \"element_id\": null"+
+"                }"+
+"            ],"+
+"            \"date_last_updated\": \"2022-03-02T01:58:12.610Z\","+
+"            \"last_updated\": \"2022-02-26T23:57:48.000-04:00\","+
+"            \"comment\": null,"+
+"            \"pack_id\": null,"+
+"            \"coupon\": {"+
+"                \"amount\": 0,"+
+"                \"id\": null"+
+"            },"+
+"            \"shipping_cost\": null,"+
+"            \"date_created\": \"2022-02-26T23:55:44.000-04:00\","+
+"            \"pickup_id\": null,"+
+"            \"status_detail\": null,"+
+"            \"tags\": ["+
+"                \"not_delivered\","+
+"                \"paid\""+
+"            ],"+
+"            \"buyer\": {"+
+"                \"id\": 202459957,"+
+"                \"nickname\": \"JUANFRANCISCOJURADOPEZ\""+
+"            },"+
+"            \"seller\": {"+
+"                \"id\": 268091189,"+
+"                \"nickname\": \"YALE COLOMBIA\""+
+"            },"+
+"            \"total_amount\": 122900,"+
+"            \"paid_amount\": 122900,"+
+"            \"currency_id\": \"COP\","+
+"            \"status\": \"paid\""+
+"        },"+
+"        {"+
+"            \"payments\": ["+
+"                {"+
+"                    \"reason\": \"Caja Fuerte Digital PequeÃ±a\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 262900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 262900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": \"2022-02-28T01:49:46.000-04:00\","+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 24,"+
+"                    \"authorization_code\": \"400818\","+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20507717675,"+
+"                    \"date_last_modified\": \"2022-03-02T16:09:59.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"refund\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": 10954.17,"+
+"                    \"date_created\": \"2022-02-28T01:49:43.000-04:00\","+
+"                    \"activation_uri\": null,"+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": 9091100352,"+
+"                    \"status_detail\": \"accredited\","+
+"                    \"issuer_id\": \"205\","+
+"                    \"payment_method_id\": \"visa\","+
+"                    \"payment_type\": \"credit_card\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": null,"+
+"                        \"company_id\": null"+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 1008272383,"+
+"                    \"order_id\": 5294913141,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"approved\","+
+"                    \"transaction_order_id\": null"+
+"                }"+
+"            ],"+
+"            \"fulfilled\": true,"+
+"            \"taxes\": {"+
+"                \"amount\": null,"+
+"                \"currency_id\": null,"+
+"                \"id\": null"+
+"            },"+
+"            \"order_request\": {"+
+"                \"change\": null,"+
+"                \"return\": null"+
+"            },"+
+"            \"expiration_date\": \"2022-03-21T01:49:46.000-04:00\","+
+"            \"feedback\": {"+
+"                \"buyer\": null,"+
+"                \"seller\": null"+
+"            },"+
+"            \"shipping\": {"+
+"                \"id\": 41210385256"+
+"            },"+
+"            \"date_closed\": \"2022-02-28T01:49:46.000-04:00\","+
+"            \"id\": 5294913141,"+
+"            \"manufacturing_ending_date\": null,"+
+"            \"order_items\": ["+
+"                {"+
+"                    \"item\": {"+
+"                        \"id\": \"MCO457285928\","+
+"                        \"title\": \"Caja Fuerte Digital PequeÃ±a\","+
+"                        \"category_id\": \"MCO177806\","+
+"                        \"variation_id\": null,"+
+"                        \"seller_custom_field\": \"0035102\","+
+"                        \"global_price\": null,"+
+"                        \"net_weight\": null,"+
+"                        \"variation_attributes\": [],"+
+"                        \"warranty\": \"GarantÃ­a de 1 aÃ±o a partir de la fecha de compra. La instalaciÃ³n debe ser realizada por un tÃ©cnico Yale certificado.\","+
+"                        \"condition\": \"new\","+
+"                        \"seller_sku\": null"+
+"                    },"+
+"                    \"quantity\": 1,"+
+"                    \"unit_price\": 262900,"+
+"                    \"full_unit_price\": 262900,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"manufacturing_days\": null,"+
+"                    \"picked_quantity\": null,"+
+"                    \"requested_quantity\": {"+
+"                        \"measure\": \"unit\","+
+"                        \"value\": 1"+
+"                    },"+
+"                    \"sale_fee\": 36806,"+
+"                    \"listing_type_id\": \"gold_special\","+
+"                    \"base_exchange_rate\": null,"+
+"                    \"base_currency_id\": null,"+
+"                    \"bundle\": null,"+
+"                    \"element_id\": null"+
+"                }"+
+"            ],"+
+"            \"date_last_updated\": \"2022-03-02T20:12:05.398Z\","+
+"            \"last_updated\": \"2022-03-02T16:12:04.000-04:00\","+
+"            \"comment\": null,"+
+"            \"pack_id\": null,"+
+"            \"coupon\": {"+
+"                \"amount\": 0,"+
+"                \"id\": null"+
+"            },"+
+"            \"shipping_cost\": null,"+
+"            \"date_created\": \"2022-02-28T01:49:42.000-04:00\","+
+"            \"pickup_id\": null,"+
+"            \"status_detail\": null,"+
+"            \"tags\": ["+
+"                \"delivered\","+
+"                \"paid\""+
+"            ],"+
+"            \"buyer\": {"+
+"                \"id\": 1008272383,"+
+"                \"nickname\": \"ARANGODAVID20220120192900\""+
+"            },"+
+"            \"seller\": {"+
+"                \"id\": 268091189,"+
+"                \"nickname\": \"YALE COLOMBIA\""+
+"            },"+
+"            \"total_amount\": 262900,"+
+"            \"paid_amount\": 262900,"+
+"            \"currency_id\": \"COP\","+
+"            \"status\": \"paid\""+
+"        },"+
+"        {"+
+"            \"payments\": ["+
+"                {"+
+"                    \"reason\": \"Caja De Efectivo Mediana - Cash Box - Caja Menor\","+
+"                    \"status_code\": null,"+
+"                    \"total_paid_amount\": 58900,"+
+"                    \"operation_type\": \"regular_payment\","+
+"                    \"transaction_amount\": 58900,"+
+"                    \"transaction_amount_refunded\": 0,"+
+"                    \"date_approved\": \"2022-03-02T11:00:44.000-04:00\","+
+"                    \"collector\": {"+
+"                        \"id\": 268091189"+
+"                    },"+
+"                    \"coupon_id\": null,"+
+"                    \"installments\": 3,"+
+"                    \"authorization_code\": \"T00770\","+
+"                    \"taxes_amount\": 0,"+
+"                    \"id\": 20554799493,"+
+"                    \"date_last_modified\": \"2022-03-02T11:02:41.000-04:00\","+
+"                    \"coupon_amount\": 0,"+
+"                    \"available_actions\": ["+
+"                        \"refund\""+
+"                    ],"+
+"                    \"shipping_cost\": 0,"+
+"                    \"installment_amount\": 19633.33,"+
+"                    \"date_created\": \"2022-03-02T11:00:42.000-04:00\","+
+"                    \"activation_uri\": null,"+
+"                    \"overpaid_amount\": 0,"+
+"                    \"card_id\": 9006982322,"+
+"                    \"status_detail\": \"accredited\","+
+"                    \"issuer_id\": \"12439\","+
+"                    \"payment_method_id\": \"master\","+
+"                    \"payment_type\": \"credit_card\","+
+"                    \"deferred_period\": null,"+
+"                    \"atm_transfer_reference\": {"+
+"                        \"transaction_id\": null,"+
+"                        \"company_id\": null"+
+"                    },"+
+"                    \"site_id\": \"MCO\","+
+"                    \"payer_id\": 489500237,"+
+"                    \"order_id\": 5300163546,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"status\": \"approved\","+
+"                    \"transaction_order_id\": null"+
+"                }"+
+"            ],"+
+"            \"fulfilled\": null,"+
+"            \"taxes\": {"+
+"                \"amount\": null,"+
+"                \"currency_id\": null,"+
+"                \"id\": null"+
+"            },"+
+"            \"order_request\": {"+
+"                \"change\": null,"+
+"                \"return\": null"+
+"            },"+
+"            \"expiration_date\": \"2022-03-23T11:00:45.000-04:00\","+
+"            \"feedback\": {"+
+"                \"buyer\": null,"+
+"                \"seller\": null"+
+"            },"+
+"            \"shipping\": {"+
+"                \"id\": 41214883128"+
+"            },"+
+"            \"date_closed\": \"2022-03-02T11:00:44.000-04:00\","+
+"            \"id\": 5300163546,"+
+"            \"manufacturing_ending_date\": null,"+
+"            \"order_items\": ["+
+"                {"+
+"                    \"item\": {"+
+"                        \"id\": \"MCO561857620\","+
+"                        \"title\": \"Caja De Efectivo Mediana - Cash Box - Caja Menor\","+
+"                        \"category_id\": \"MCO177805\","+
+"                        \"variation_id\": null,"+
+"                        \"seller_custom_field\": null,"+
+"                        \"global_price\": null,"+
+"                        \"net_weight\": null,"+
+"                        \"variation_attributes\": [],"+
+"                        \"warranty\": \"GarantÃ­a de fÃ¡brica: 1 aÃ±os\","+
+"                        \"condition\": \"new\","+
+"                        \"seller_sku\": \"0011292\""+
+"                    },"+
+"                    \"quantity\": 1,"+
+"                    \"unit_price\": 58900,"+
+"                    \"full_unit_price\": 58900,"+
+"                    \"currency_id\": \"COP\","+
+"                    \"manufacturing_days\": null,"+
+"                    \"picked_quantity\": null,"+
+"                    \"requested_quantity\": {"+
+"                        \"measure\": \"unit\","+
+"                        \"value\": 1"+
+"                    },"+
+"                    \"sale_fee\": 9246,"+
+"                    \"listing_type_id\": \"gold_special\","+
+"                    \"base_exchange_rate\": null,"+
+"                    \"base_currency_id\": null,"+
+"                    \"bundle\": null,"+
+"                    \"element_id\": null"+
+"                }"+
+"            ],"+
+"            \"date_last_updated\": \"2022-03-02T15:02:55.196Z\","+
+"            \"last_updated\": \"2022-03-02T11:02:45.000-04:00\","+
+"            \"comment\": null,"+
+"            \"pack_id\": null,"+
+"            \"coupon\": {"+
+"                \"amount\": 0,"+
+"                \"id\": null"+
+"            },"+
+"            \"shipping_cost\": null,"+
+"            \"date_created\": \"2022-03-02T11:00:40.000-04:00\","+
+"            \"pickup_id\": null,"+
+"            \"status_detail\": null,"+
+"            \"tags\": ["+
+"                \"not_delivered\","+
+"                \"paid\""+
+"            ],"+
+"            \"buyer\": {"+
+"                \"id\": 489500237,"+
+"                \"nickname\": \"ERIKAYOHANAORTIZRODRIGUEZ\""+
+"            },"+
+"            \"seller\": {"+
+"                \"id\": 268091189,"+
+"                \"nickname\": \"YALE COLOMBIA\""+
+"            },"+
+"            \"total_amount\": 58900,"+
+"            \"paid_amount\": 58900,"+
+"            \"currency_id\": \"COP\","+
+"            \"status\": \"paid\""+
+"        }"+
+"    ],"+
+"    \"sort\": {"+
+"        \"id\": \"date_asc\","+
+"        \"name\": \"Date ascending\""+
+"    },"+
+"    \"available_sorts\": ["+
+"        {"+
+"            \"id\": \"date_desc\","+
+"            \"name\": \"Date descending\""+
+"        }"+
+"    ],"+
+"    \"filters\": ["+
+"        {"+
+"            \"id\": \"order.status\","+
+"            \"name\": \"Order Status\","+
+"            \"type\": \"text\","+
+"            \"values\": ["+
+"                {"+
+"                    \"id\": \"paid\","+
+"                    \"name\": \"Order Paid\""+
+"                }"+
+"            ]"+
+"        }"+
+"    ],"+
+"    \"paging\": {"+
+"        \"total\": 10,"+
+"        \"offset\": 0,"+
+"        \"limit\": 51"+
+"    },"+
+"    \"display\": \"complete\""+
+"}";
+	
+
+        return myvar;
     }
 
     /**
@@ -2310,9 +2998,10 @@ public class QADService
 
 
         EmailBody emailBody = new EmailBody();
-        //emailBody.setEmail("jessica.buitrago@sii-group.co");
-        emailBody.setEmail("alejandro.lindarte@sii-group.co");
-        //emailBody.setEmail("carlosjavier.tejerorojas@assaabloy.com");
+        // emailBody.setEmail("jessica.buitrago@sii-group.co");
+         //emailBody.setEmail("carlos.rodriguez2@assaabloy.com");
+         emailBody.setEmail("alejandro.lindarte@assaabloy.com");
+        // emailBody.setEmail("carlosjavier.tejerorojas@assaabloy.com");
         emailBody.setContent(myvar+"<h1>"+content+"</h1>");
         emailBody.setSubject(subject);
         HttpHeaders headers = new HttpHeaders();

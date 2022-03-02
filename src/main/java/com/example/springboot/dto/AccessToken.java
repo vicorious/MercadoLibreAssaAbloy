@@ -9,6 +9,10 @@ public class AccessToken
     private int user_id;
     private String refresh_token;
 
+    public AccessToken(){
+        
+    }
+
 
     public AccessToken(String access_token, String token_type, int expires_in, String scope, int user_id, String refresh_token) {
         this.access_token = access_token;

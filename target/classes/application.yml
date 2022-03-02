@@ -32,10 +32,10 @@ spring:
   # Database
   datasource:
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
-    #username: ${MERCADOLIBREQAD_DB_USERNAME}
-    #password: ${MERCADOLIBREQAD_DB_PASSWORD}
-    #url: jdbc:sqlserver://${MERCADOLIBREQAD_DB_HOST}:${MERCADOLIBREQAD_DB_PORT};database=${MERCADOLIBREQAD_DB_NAME};loginTimeout=30;integratedSecurity=true
-    url: jdbc:sqlserver://localhost:1433;database=assaabloy;loginTimeout=30;integratedSecurity=true
+    username: FabricaTest
+    password: F4br1c42o22
+    url: jdbc:sqlserver://10.205.16.184:1433;database=Integraciones;loginTimeout=30;
+    #url: jdbc:sqlserver://localhost:1433;database=assaabloy;loginTimeout=30;integratedSecurity=true
     initialization-mode: always
     continue-on-error: true
   # Database
@@ -83,6 +83,20 @@ spring:
         writetimeout: 5000
         starttls.enable: true
         starttls.required: true
+  #mail:
+    #host: relay.assaabloy.net
+    #port: 25
+    #username: noresponder@assaabloy.com 
+    #password: Mx42Nbf7A6Hoz3YZi58R
+    #protocol: smtp
+    #tls: true
+    #properties.mail.smtp:
+        #auth: true
+        #connectiontimeout: 5000
+        #timeout: 5000
+        #writetimeout: 5000
+        #starttls.enable: true
+        #starttls.required: true
 
 bus:
   exchange_name: ${DEV_BUS_EXCHANGE_NAME}

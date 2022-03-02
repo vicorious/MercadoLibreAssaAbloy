@@ -57,9 +57,10 @@ public class FacadeQADService {
         String detalle_ids = new String();
         String cuentas_ids = new String();
         String encabezado_ids = new String();
+        String errores = new String();
 
-        String orders = this.qadService.dummyOrders();
-        //String orders = this.qadService.orders();
+        //String orders = this.qadService.dummyOrders();
+        String orders = this.qadService.orders(accessToken);
 
         JSONObject jsonObject = new JSONObject(orders);
 
@@ -70,17 +71,13 @@ public class FacadeQADService {
         JSONArray results = new JSONArray(jsonObject.get("results").toString());
         for(int i = 0; i < results.length(); i++) 
         {   
-            System.out.println(i);
             JSONObject resu = (JSONObject) results.get(i);  
-            System.out.println(resu);
             JSONArray payments = (JSONArray) resu.get("payments");
-            System.out.println(payments);
             JSONObject payment = (JSONObject) payments.get(0);
-            System.out.println(payment);
 
             //Solo aprovadas ("approved") y es estado "paid"
             if(!payment.get("status").toString().equalsIgnoreCase("approved") && !resu.get("status").toString().equalsIgnoreCase("paid"))
-            { System.out.println("Salio"); return;}
+            { errores.concat("No es una transaccion"); return;}
 
             IntegracionBoomiCuentas integracionBoomiCuentas = new IntegracionBoomiCuentas();                        
             
@@ -89,38 +86,53 @@ public class FacadeQADService {
 
             ordersi = order_items.length();
 
-            JSONObject billing_info = (JSONObject) buyer.get("billing_info");
-            JSONObject phone = (JSONObject) buyer.get("phone");
+            try
+            {
+                JSONObject billing_info = (JSONObject) buyer.get("billing_info");
+                integracionBoomiCuentas.setAd_gst_id(billing_info.get("doc_number").toString());
+                integracionBoomiCuentas.setAd_misc1_id(billing_info.get("doc_type").toString());
+            
+            }catch(Exception ex)
+            {
+                errores.concat("No billing info in buyer").concat(" ");
+            }
 
-            integracionBoomiCuentas.setFe_nam1(buyer.get("first_name").toString());
-            integracionBoomiCuentas.setFe_apel1(buyer.get("last_name").toString());
-            integracionBoomiCuentas.setAd_gst_id(billing_info.get("doc_number").toString());
-            integracionBoomiCuentas.setAd_misc1_id(billing_info.get("doc_type").toString());
-            integracionBoomiCuentas.setAd_phone(phone.get("number").toString());
+            try
+            {
+                JSONObject phone = (JSONObject) buyer.get("phone");
+                integracionBoomiCuentas.setAd_phone(phone.get("number").toString());
+            }catch(Exception ex)
+            {
+                errores.concat("No phone in buyer").concat(" ");
+            }
+            try
+            {
+                integracionBoomiCuentas.setFe_nam1(buyer.get("first_name").toString());
+                integracionBoomiCuentas.setFe_apel1(buyer.get("last_name").toString());
 
-            System.out.println("111111111");
+            }catch(Exception ex)
+            {
+                errores.concat("No firstname in buyer").concat(" ");
+            }                        
 
+            //Un result, tiene muchos order items
             for(int j = 0; j < order_items.length() ; j++)
             {
-                System.out.println("j:"+j);
                 JSONObject or = (JSONObject) order_items.get(j);
                 JSONObject item = (JSONObject) or.get("item");
-                System.out.println("ITEM: ");
-                System.out.println(item.toString());
                 IntegrationBoomiOVDetalle integrationBoomiOVDetalle = new IntegrationBoomiOVDetalle();
                 try
                 {
                     integrationBoomiOVDetalle.setSod_part(item.get("seller_sku").toString());
+                    errores.concat("No seller_sku in item");
                 }catch(Exception e)
                 {
                     integrationBoomiOVDetalle.setSod_part(item.get("seller_custom_field").toString());
                 }
-                //integrationBoomiOVDetalle.setSod_part(or.get("seller_sku") == null ? or.get("seller_custom_field").toString() : or.get("seller_sku").toString());
+
                 integrationBoomiOVDetalle.setSod_qty_inv(Integer.parseInt(or.get("quantity").toString()));
                 integrationBoomiOVDetalle.setSod_price(Integer.parseInt(or.get("unit_price").toString()));
 
-                //int detalle = (int) this.integrationBoomiOVDetalleRepository.count() + 1;
-                //integrationBoomiOVDetalle.setId_Detalle(detalle);
                 IntegrationBoomiOVDetalle boomiOVDetalle = this.integrationBoomiOVDetalleRepository.save(integrationBoomiOVDetalle);
                 detalle_ids.concat(boomiOVDetalle.getId_Detalle() + "");
             }
@@ -130,12 +142,13 @@ public class FacadeQADService {
             integracionBoomiOVEncabezado.setSo_importeTotal(resu.get("total_amount").toString());
             integracionBoomiOVEncabezado.setSo_po(shipping.get("id").toString());
 
-            //this.qadService.getShippingData(accessToken, resu.get("shipping").get("id"));
-            String shippingData = this.qadService.getDummyShippingData();
+            String shippingData = this.qadService.getShippingData(accessToken, shipping.get("id").toString());
+            //String shippingData = this.qadService.getDummyShippingData();
 
             JSONObject jsonObjectShipping = new JSONObject(shippingData);
-            JSONObject destination = (JSONObject) jsonObjectShipping.get("destination");
-            JSONObject shipping_address = (JSONObject) destination.get("shipping_address");
+            System.out.println(jsonObjectShipping.toString());            
+            JSONObject shipping_address = (JSONObject) jsonObjectShipping.get("receiver_address");
+            
 
             Object comment = shipping_address.get("comment");
             JSONObject city = (JSONObject) shipping_address.get("city");
@@ -146,19 +159,11 @@ public class FacadeQADService {
             integracionBoomiCuentas.setAd_city(city.get("name").toString());
             integracionBoomiCuentas.setAd_state(state.get("name").toString());
                             
-            int cuenta = (int) this.integrationBoomiCuentasRepository.count() + 1;
-            integracionBoomiCuentas.setId_Cuenta(cuenta);
-            IntegracionBoomiCuentas boomiCuentas = this.integrationBoomiCuentasRepository.save(integracionBoomiCuentas);     
-            cuentas_ids.concat(boomiCuentas.getId_Cuenta() + "");
+            this.integrationBoomiCuentasRepository.save(integracionBoomiCuentas);     
+            this.integrationBoomiOVEncabezadoRepository.save(integracionBoomiOVEncabezado);
         }
 
-        int encabezado = (int) this.integrationBoomiOVEncabezadoRepository.count() + 1;
-        integracionBoomiOVEncabezado.setIdEncabezado(encabezado);
-        IntegracionBoomiOVEncabezado boomiOVEncabezado = this.integrationBoomiOVEncabezadoRepository.save(integracionBoomiOVEncabezado);
-
-        encabezado_ids.concat(boomiOVEncabezado.getIdEncabezado() + "");
-
-        this.email("MercadoLibre ejecutado exitosamente: Numero de SKUS: "+ordersi, "MERCADOLIBRE EJECUCION CORRECTA: ");
+        this.email("MercadoLibre ejecutado exitosamente: Numero de SKUS: "+ordersi + " Encabezados: "+encabezado_ids+" Cuentas: "+cuentas_ids+" Errores: "+errores, "MERCADOLIBRE EJECUCION CORRECTA: ");
 
     }
 
@@ -172,6 +177,15 @@ public class FacadeQADService {
     }
 
     /**
+     * 
+     * @return
+     * @throws Exception
+     */
+    public String TGTokenML() throws Exception {
+        return this.qadService.getTGToken();
+    }
+
+    /**
      *
      * @param tgToken
      * @return
@@ -179,6 +193,16 @@ public class FacadeQADService {
      */
     public AccessToken accessToken(String tgToken) throws Exception {
         return this.qadService.dummyAccessToken(tgToken);
+    }
+
+    /**
+     * 
+     * @param tgToken
+     * @return
+     * @throws Exception
+     */
+    public AccessToken accessTokenML(String tgToken) throws Exception {
+        return this.qadService.getAccessToken(tgToken);
     }
 
     /**

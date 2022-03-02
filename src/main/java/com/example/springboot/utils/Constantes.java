@@ -24,5 +24,7 @@ public class Constantes {
 
     public static String ENVIADA = "Enviada";
     public static String RECIBIDA = "Recibida";
+
+    public static String FILE_TG = "src/resources/previousToken.txt";
     
 }
