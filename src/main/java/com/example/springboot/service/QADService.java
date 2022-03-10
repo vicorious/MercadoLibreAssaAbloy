@@ -1722,18 +1722,18 @@ String myvar = "{"+
      * @param orderStatus
      * @return
      */
-    public String ordersByStateAndDate(String accessToken, OrderStatus orderStatus, Date actualDate)
+    public String ordersByStateAndDate(String accessToken, OrderStatus orderStatus, String actualDate)
     {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        SimpleDateFormat sdf2 = new SimpleDateFormat("YYYY-MM-ddTHH:mm:ss.000-00:00");
+        /*SimpleDateFormat sdf2 = new SimpleDateFormat("YYYY-MM-ddTHH:mm:ss.000-00:00");
         Timestamp timestamp = new Timestamp(actualDate.getTime());
-        String date = sdf2.format(timestamp);
+        String date = sdf2.format(timestamp);*/
 
         RestTemplate template = new RestTemplate();
         String url = Constantes.URL_ORDERS_SEARCH + "?seller=" +
-                Constantes.SELLER + "&order.date_closed.from="+date +
+                Constantes.SELLER + "&order.date_closed.from="+actualDate +
                 "&order.status=" + orderStatus.getValue() +
                 "&access_token="+accessToken;
 
@@ -1789,6 +1789,42 @@ String myvar = "{"+
 
         return template.getForEntity(url, String.class).getBody();
     }
+
+    /**
+     * 
+     * @param accessToken
+     * @param orderId
+     * @return
+     */
+    public String ordersBillingInfo(String accessToken, String orderId)
+    {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_BILLING_INFO.replace("ORDER_ID", orderId) +
+        "?access_token="+accessToken;
+
+        return template.getForEntity(url, String.class).getBody();
+    }    
+
+    /**
+     * 
+     * @param accessToken
+     * @param orderId
+     * @return
+     */
+    public String ordersData(String accessToken, String orderId)
+    {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        RestTemplate template = new RestTemplate();
+        String url = Constantes.URL_ORDERS_DATA.replace("ORDER_ID", orderId) +
+        "?access_token="+accessToken;
+
+        return template.getForEntity(url, String.class).getBody();
+    }    
 
     /**
      *

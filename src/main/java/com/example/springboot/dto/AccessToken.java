@@ -10,7 +10,7 @@ public class AccessToken
     private String refresh_token;
 
     public AccessToken(){
-        
+
     }
 
 
@@ -69,5 +69,18 @@ public class AccessToken
 
     public void setRefresh_token(String refresh_token) {
         this.refresh_token = refresh_token;
+    }
+
+
+    @Override
+    public String toString() {
+        return "AccessToken{" +
+                "access_token='" + access_token + '\'' +
+                ", token_type='" + token_type + '\'' +
+                ", expires_in=" + expires_in +
+                ", scope='" + scope + '\'' +
+                ", user_id=" + user_id +
+                ", refresh_token='" + refresh_token + '\'' +
+                '}';
     }
 }
